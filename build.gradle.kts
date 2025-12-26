@@ -1,42 +1,69 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
-    kotlin("jvm") version "1.8.21"
-    id("com.github.johnrengelman.shadow") version "6.0.0"
+    kotlin("jvm") version "2.1.20"
+    id("com.gradleup.shadow") version "9.0.0-beta4"
     application
 }
 
 group = "icu.lama"
-version = "1.0-SNAPSHOT"
-project.setProperty("mainClassName", "icu.lama.artifactory.keygen.KeygenKt")
+version = "2.0-SNAPSHOT"
+
+application {
+    mainClass.set("icu.lama.artifactory.keygen.KeygenKt")
+}
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    implementation("commons-cli:commons-cli:1.8.0")
+    // CLI and utilities
+    implementation("commons-cli:commons-cli:1.9.0")
+    implementation("commons-codec:commons-codec:1.17.1")
 
-    // implementation(files("./libs/artifactory-addons-manager-7.9.2.jar")) // initial
-    implementation("org.bouncycastle:bcprov-jdk18on:1.74")
-    implementation("commons-codec:commons-codec:1.9")
-    implementation("org.codehaus.jackson:jackson-core-asl:1.7.9")
-    implementation("org.codehaus.jackson:jackson-mapper-asl:1.7.9")
+    // Cryptography - BouncyCastle
+    implementation("org.bouncycastle:bcprov-jdk18on:1.79")
 
-    // JFrog keep using old versions...
-    //implementation("org.yaml:snakeyaml:1.23") // using old versions to be able to run artifactory-addons-manager:7.9.2
+    // JSON processing - migrated from Jackson 1.x to 2.x for Java 25 compatibility
+    implementation("com.fasterxml.jackson.core:jackson-core:2.18.2")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.18.2")
+    implementation("com.fasterxml.jackson.core:jackson-annotations:2.18.2")
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.2")
 
-    implementation(files("./libs/artifactory-addons-manager-7.90.7.jar")) // Update
-    implementation("org.yaml:snakeyaml:2.0")
+    // JFrog proprietary libraries
+    // NOTE: Extracted from Artifactory Enterprise 7.125.10
+    implementation(files("./libs/artifactory-addons-manager-7.125.10.jar"))
+
+    // YAML processing
+    implementation("org.yaml:snakeyaml:2.3")
+
+    // HTTP client
     implementation("org.apache.httpcomponents:httpclient:4.5.14")
-    implementation("org.slf4j:slf4j-api:2.0.7")
+    implementation("org.apache.httpcomponents:httpcore:4.4.16")
 
-    // TODO change to LicenseManager instead of artifactory-addons-manager
-    // Which is a de-obfuscated version of artifactory-addons-manager
+    // Logging
+    implementation("org.slf4j:slf4j-api:2.0.16")
+    implementation("ch.qos.logback:logback-classic:1.5.12")
+
+    // Testing dependencies
+    testImplementation(kotlin("test"))
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
 }
 
 kotlin {
-    jvmToolchain(11)
+    jvmToolchain(25)
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_23)
+    }
+}
+
+tasks.withType<JavaCompile> {
+    options.release.set(23)
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }
 
 tasks.withType<ShadowJar> {

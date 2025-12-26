@@ -1,0 +1,84 @@
+# Containerfile.dev - Development container for ArtifactoryKeygen with SDKMAN and GraalVM 25
+# Educational project for reverse engineering and security research
+# Build: buildah bud -f deployment/containerfiles/Containerfile.dev -t artifactory-keygen:dev .
+# Run: podman run -v $(pwd):/workspace:Z -it artifactory-keygen:dev
+
+# Use Debian Trixie as base (testing - includes latest packages)
+FROM docker.io/debian:trixie-slim
+
+LABEL maintainer="ArtifactoryKeygen Educational Project"
+LABEL description="Development container for ArtifactoryKeygen with SDKMAN, GraalVM 25, and build tools"
+LABEL version="2.0"
+LABEL org.opencontainers.image.title="ArtifactoryKeygen Development"
+LABEL org.opencontainers.image.description="Java 25 dev environment for license key generation research"
+LABEL org.opencontainers.image.vendor="Educational Research"
+LABEL org.opencontainers.image.licenses="Educational Use"
+LABEL com.artifactory.component="development"
+LABEL com.artifactory.java.version="25"
+
+# Install base dependencies for development
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        wget \
+        git \
+        zip \
+        unzip \
+        procps \
+        net-tools \
+        vim-tiny \
+        nano \
+        ca-certificates \
+        gnupg2 \
+        build-essential \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install SDKMAN and Java/build tools
+ENV SDKMAN_DIR=/root/.sdkman
+ENV BASH_ENV=/root/.bashrc
+
+# Install SDKMAN
+RUN curl -s "https://get.sdkman.io" | bash && \
+    chmod +x "$SDKMAN_DIR/bin/sdkman-init.sh" && \
+    echo 'source "$SDKMAN_DIR/bin/sdkman-init.sh"' >> /root/.bashrc
+
+# Install Java 25 (GraalVM) and Gradle via SDKMAN
+RUN bash -c "source $SDKMAN_DIR/bin/sdkman-init.sh && \
+    sdk install java 25.0.1-graal && \
+    sdk install gradle 9.2.1 && \
+    sdk flush archives && \
+    sdk flush temp"
+
+# Set default Java and Gradle
+ENV JAVA_HOME=$SDKMAN_DIR/candidates/java/current
+ENV GRADLE_HOME=$SDKMAN_DIR/candidates/gradle/current
+ENV PATH=$JAVA_HOME/bin:$GRADLE_HOME/bin:$PATH
+
+# Create directories for Gradle cache
+RUN mkdir -p /workspace/.gradle/caches /workspace/.gradle/wrapper
+
+# Create app directory
+WORKDIR /workspace
+
+# Configure Gradle for faster builds and better performance with Java 25
+# Using ZGC Generational for development
+ENV GRADLE_OPTS="-XX:+UseZGC -XX:+ZGenerational -XX:+UseCompactObjectHeaders -Xmx2g -Dorg.gradle.daemon=false -Dorg.gradle.caching=true -Dorg.gradle.parallel=true"
+ENV GRADLE_USER_HOME=/workspace/.gradle
+
+# Expose debugger port
+EXPOSE 5005
+
+# Verify installations
+RUN java -version && \
+    gradle --version
+
+# Default command: Interactive shell for development
+CMD ["/bin/bash"]
+
+# Development commands:
+# Build project:        ./gradlew build
+# Run tests:            ./gradlew test
+# Clean build:          ./gradlew clean build
+# Shadow JAR:           ./gradlew shadowJar
+# Debug mode:           podman run --rm -it -v .:/workspace:Z -p 5005:5005 artifactory-keygen:dev

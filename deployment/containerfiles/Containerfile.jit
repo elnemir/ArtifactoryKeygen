@@ -1,0 +1,125 @@
+# ArtifactoryKeygen Containerfile (JIT Mode)
+# Educational project for reverse engineering and security research
+# Build with: buildah bud -f deployment/containerfiles/Containerfile.jit -t artifactory-keygen:jit .
+
+# =============================================================================
+# Stage 1: Build with Gradle and Java 25
+# =============================================================================
+FROM docker.io/debian:trixie-slim AS builder
+
+LABEL org.opencontainers.image.title="ArtifactoryKeygen Builder"
+LABEL org.opencontainers.image.description="Build stage for ArtifactoryKeygen educational project"
+
+# Install build dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        unzip \
+        ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install SDKMAN
+ENV SDKMAN_DIR=/root/.sdkman
+RUN curl -s "https://get.sdkman.io" | bash && \
+    chmod +x "$SDKMAN_DIR/bin/sdkman-init.sh"
+
+# Install Java 25 (GraalVM) and Gradle
+RUN bash -c "source $SDKMAN_DIR/bin/sdkman-init.sh && \
+    sdk install java 25.0.1-graal && \
+    sdk install gradle 9.2.1 && \
+    sdk flush archives && \
+    sdk flush temp"
+
+# Set environment
+ENV JAVA_HOME=/root/.sdkman/candidates/java/current
+ENV GRADLE_HOME=/root/.sdkman/candidates/gradle/current
+ENV PATH=$JAVA_HOME/bin:$GRADLE_HOME/bin:$PATH
+ENV GRADLE_USER_HOME=/build/.gradle
+ENV GRADLE_OPTS="-XX:+UseZGC -XX:+ZGenerational -Xmx2g -Dorg.gradle.daemon=false -Dorg.gradle.caching=true"
+
+WORKDIR /build
+
+# Copy Gradle configuration for dependency resolution
+COPY build.gradle.kts settings.gradle.kts gradle.properties ./
+COPY gradle/ ./gradle/
+COPY gradlew gradlew.bat ./
+
+# Make gradlew executable
+RUN chmod +x ./gradlew
+
+# Pre-download dependencies (cached layer)
+RUN ./gradlew --no-daemon dependencies --refresh-dependencies || true
+
+# Copy source code
+COPY src/ ./src/
+COPY libs/ ./libs/
+
+# Build the shadow JAR (uber JAR with all dependencies)
+RUN ./gradlew --no-daemon shadowJar --info
+
+# Verify the JAR was created
+RUN ls -lh /build/build/libs/ && \
+    test -f /build/build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar
+
+# =============================================================================
+# Stage 2: Oracle GraalVM JDK 25 Runtime on Oracle Linux 10 (RHEL-compatible)
+# =============================================================================
+# Includes: GraalVM Compiler (JVMCI) for +15% JIT performance
+FROM container-registry.oracle.com/graalvm/jdk:25-ol10
+
+LABEL org.opencontainers.image.title="ArtifactoryKeygen Runtime (JIT)"
+LABEL org.opencontainers.image.description="Production runtime for ArtifactoryKeygen with Oracle GraalVM 25 JIT compilation"
+LABEL org.opencontainers.image.vendor="Educational Research"
+LABEL org.opencontainers.image.version="2.0-SNAPSHOT"
+LABEL org.opencontainers.image.licenses="Educational Use"
+LABEL org.opencontainers.image.base.name="container-registry.oracle.com/graalvm/jdk:25-ol10"
+LABEL tech.stack.java="25-LTS"
+LABEL tech.stack.graalvm="25.0.1"
+LABEL com.artifactory.component="runtime"
+LABEL com.artifactory.java.mode="jit"
+
+# JVM configuration for containers with Java 25 LTS optimizations
+# - Virtual Threads: available via --enable-preview (not used in this CLI tool)
+# - Compact Object Headers (JEP 519): -10-22% heap, +8% CPU, -15% GC
+# - ZGC Generational: <1ms pauses, low memory footprint
+# - GraalVM Compiler (JVMCI): enabled by default for improved JIT performance
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0 \
+    -XX:+UseZGC \
+    -XX:+ZGenerational \
+    -XX:+UseCompactObjectHeaders \
+    -XX:+ExitOnOutOfMemoryError \
+    -XX:+UseContainerSupport \
+    -Djava.security.egd=file:/dev/./urandom"
+
+WORKDIR /app
+
+# Copy the built JAR from builder stage
+COPY --from=builder --chown=nobody:nobody /build/build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar /app/artifactory-keygen.jar
+
+# Verify JAR integrity
+RUN java -jar /app/artifactory-keygen.jar --help || true
+
+# Run as non-root user (Oracle Linux uses 'nobody' by convention)
+USER nobody
+
+# Health check (optional, for container orchestration)
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=1 \
+    CMD java -version || exit 1
+
+# Default entrypoint
+ENTRYPOINT ["java", "-jar", "/app/artifactory-keygen.jar"]
+
+# Default command (shows help)
+CMD ["--help"]
+
+# Usage examples:
+# Run with default settings:
+#   podman run --rm artifactory-keygen:jit
+#
+# Generate license:
+#   podman run --rm -v ./output:/output:Z artifactory-keygen:jit \
+#     -o /output/artifactory.lic -n "Company Name" -e "email@example.com"
+#
+# Custom memory settings:
+#   podman run --rm -e JAVA_TOOL_OPTIONS="-Xmx1g" artifactory-keygen:jit

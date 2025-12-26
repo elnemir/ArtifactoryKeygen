@@ -1,0 +1,241 @@
+# ArtifactoryKeygen Podman Compose Configuration
+# Educational project for reverse engineering and security research
+# OCI Image Spec and Compose Specification compliant
+#
+# Usage:
+#   Development:  podman-compose up keygen-dev
+#   Build JIT:    podman-compose build keygen-jit
+#   Run JIT:      podman-compose run --rm keygen-jit --help
+#
+# References:
+# - https://github.com/compose-spec/compose-spec/blob/main/spec.md
+# - https://github.com/opencontainers/image-spec
+
+version: '3.8'
+
+# Network definition
+networks:
+  keygen-network:
+    driver: bridge
+    labels:
+      com.artifactory.description: "ArtifactoryKeygen internal network"
+      com.artifactory.project: "ArtifactoryKeygen"
+
+# Volume definitions for persistent data
+volumes:
+  gradle-cache:
+    driver: local
+    labels:
+      com.artifactory.description: "Gradle dependency cache"
+  output:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/output
+    labels:
+      com.artifactory.description: "Generated license output directory"
+
+services:
+  # ==========================================================================
+  # Development Environment Service
+  # ==========================================================================
+  keygen-dev:
+    container_name: artifactory-keygen-dev
+
+    build:
+      context: ..
+      dockerfile: deployment/containerfiles/Containerfile.dev
+      labels:
+        org.opencontainers.image.title: "ArtifactoryKeygen Dev"
+        org.opencontainers.image.description: "Development environment for ArtifactoryKeygen"
+        com.artifactory.stage: "development"
+
+    image: artifactory-keygen:dev
+
+    # OCI Image annotations
+    labels:
+      org.opencontainers.image.title: "ArtifactoryKeygen Development"
+      org.opencontainers.image.description: "Interactive development environment for ArtifactoryKeygen"
+      org.opencontainers.image.vendor: "Educational Research"
+      com.artifactory.component: "development"
+      com.artifactory.java.version: "25"
+
+    environment:
+      # Gradle configuration
+      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true"
+      GRADLE_USER_HOME: /cache/gradle
+
+      # Java configuration
+      JAVA_OPTS: "-Xms256m -Xmx1g"
+
+      # Development settings
+      LANG: "en_US.UTF-8"
+      LC_ALL: "en_US.UTF-8"
+
+    volumes:
+      # Mount project directory (with SELinux label for Podman)
+      - ..:/workspace:Z
+      # Persistent Gradle cache
+      - gradle-cache:/cache/gradle
+      # Output directory
+      - output:/workspace/output
+      # Timezone
+      - /etc/localtime:/etc/localtime:ro
+
+    working_dir: /workspace
+
+    networks:
+      - keygen-network
+
+    # Expose debugging port
+    ports:
+      - "${DEBUG_PORT:-5005}:5005"
+
+    # Interactive terminal
+    stdin_open: true
+    tty: true
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    # Logging configuration
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Default command: bash shell
+    command: ["/bin/bash"]
+
+  # ==========================================================================
+  # JIT Runtime Service (Production)
+  # ==========================================================================
+  keygen-jit:
+    container_name: artifactory-keygen-jit
+
+    build:
+      context: ..
+      dockerfile: deployment/containerfiles/Containerfile.jit
+      target: runtime
+      labels:
+        org.opencontainers.image.title: "ArtifactoryKeygen JIT Runtime"
+        org.opencontainers.image.description: "Production runtime for ArtifactoryKeygen"
+        com.artifactory.stage: "production"
+
+    image: artifactory-keygen:jit
+
+    # OCI Image annotations
+    labels:
+      org.opencontainers.image.title: "ArtifactoryKeygen JIT Runtime"
+      org.opencontainers.image.description: "Production runtime with JIT compilation"
+      org.opencontainers.image.vendor: "Educational Research"
+      com.artifactory.component: "runtime"
+      com.artifactory.java.version: "25"
+      com.artifactory.java.mode: "jit"
+
+    environment:
+      # Memory settings (can be overridden)
+      JAVA_MIN_HEAP: ${JAVA_MIN_HEAP:-128m}
+      JAVA_MAX_HEAP: ${JAVA_MAX_HEAP:-512m}
+
+      # JVM options
+      JAVA_OPTS: "${JAVA_OPTS:--XX:+UseG1GC -XX:MaxGCPauseMillis=200}"
+
+    volumes:
+      # Output directory for generated licenses
+      - output:/output:Z
+      # Timezone
+      - /etc/localtime:/etc/localtime:ro
+
+    networks:
+      - keygen-network
+
+    # Resource limits (production-optimized)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+    # Logging configuration
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+
+    # Read-only root filesystem (uncomment for maximum security)
+    # read_only: true
+
+    # Default command: show help
+    command: ["--help"]
+
+  # ==========================================================================
+  # Builder Service (One-time build)
+  # ==========================================================================
+  keygen-builder:
+    container_name: artifactory-keygen-builder
+
+    build:
+      context: ..
+      dockerfile: deployment/containerfiles/Containerfile.jit
+      target: builder
+      labels:
+        org.opencontainers.image.title: "ArtifactoryKeygen Builder"
+        com.artifactory.stage: "build"
+
+    image: artifactory-keygen:builder
+
+    labels:
+      org.opencontainers.image.title: "ArtifactoryKeygen Builder"
+      org.opencontainers.image.description: "Build stage for creating shadow JAR"
+      com.artifactory.component: "builder"
+
+    environment:
+      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true"
+      GRADLE_USER_HOME: /cache/gradle
+
+    volumes:
+      - ..:/build:Z
+      - gradle-cache:/cache/gradle
+      - output:/build/build/libs
+
+    working_dir: /build
+
+    networks:
+      - keygen-network
+
+    command: ["./gradlew", "clean", "shadowJar"]
+
+# =============================================================================
+# Environment Variables (create .env file in deployment directory)
+# =============================================================================
+# Example .env file:
+#
+# # Java memory settings
+# JAVA_MIN_HEAP=256m
+# JAVA_MAX_HEAP=1g
+#
+# # Debug port
+# DEBUG_PORT=5005
+#
+# # Additional JVM options
+# JAVA_OPTS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+#
+# =============================================================================

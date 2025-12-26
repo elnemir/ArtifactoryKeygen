@@ -37,6 +37,30 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+Thumbs.db
 
 ### Copyright Folders ###
 libs/*.jar
+
+### Generated artifacts ###
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+*.war
+*.nar
+
+### Logs ###
+logs/
+*.log
+
+### Keys and sensitive data (NEVER commit) ###
+*.key
+*.pem
+*.p12
+*.jks
+*.keystore
+keys/
+secrets/
+
+### Test outputs ###
+test-results/
+test-output/

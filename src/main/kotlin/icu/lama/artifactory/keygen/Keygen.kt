@@ -1,10 +1,10 @@
 package icu.lama.artifactory.keygen
 
 import org.jfrog.license.a.ObfuscatedString
-import org.codehaus.jackson.JsonEncoding
-import org.codehaus.jackson.JsonFactory
-import org.codehaus.jackson.map.ObjectMapper
-import org.codehaus.jackson.map.annotate.JsonSerialize
+import com.fasterxml.jackson.core.JsonEncoding
+import com.fasterxml.jackson.core.JsonFactory
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.annotation.JsonInclude
 import org.jfrog.license.api.Product
 import org.jfrog.license.exception.LicenseRuntimeException
 import org.jfrog.license.multiplatform.License
@@ -249,11 +249,12 @@ fun createFinalLicense(obj: Any): String {
     val bos = ByteArrayOutputStream()
     try {
         val factory = JsonFactory()
-        val generator = factory.createJsonGenerator(bos, JsonEncoding.UTF8)
+        val generator = factory.createGenerator(bos, JsonEncoding.UTF8)
         val objectMapper = ObjectMapper(factory)
-        objectMapper.serializationConfig.serializationInclusion = JsonSerialize.Inclusion.NON_NULL
+        objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL)
         generator.setCodec(objectMapper)
         generator.writeObject(obj)
+        generator.close()
     } catch (e: IOException) {
         throw LicenseRuntimeException("Failed to serialize license", e)
     }
