@@ -67,7 +67,7 @@
 
 ```
 Keygen (gen/genkey/verify/mkconfig) → RSA 4096, подпись лицензий
-Agent (-javaagent) → патчинг org.jfrog.license.a.a и org.jfrog.license.api.a → подмена публичного ключа
+Agent (-javaagent) → патчинг org.jfrog.license (a.a, api.a — подмена ключа; legacy.LegacyLicenseManager — возврат null при ошибке decrypt → переход на формат с подписью)
 Artifactory → проверка лицензии с подставленным ключом
 ```
 
@@ -175,7 +175,7 @@ java -jar build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar mkconfig
 ## Технические детали
 
 - **Keygen:** Kotlin 2.1.20, BouncyCastle 1.79, Jackson 2.18.2, JVM 23+
-- **Agent:** Java 25, Javassist, патчинг `org.jfrog.license.a.a` (toString + поле `b`) и `org.jfrog.license.api.a` (статичные поля c/d)
+- **Agent:** Java 25, Javassist. Патчи: `org.jfrog.license.a.a` (toString + поле `b`), `org.jfrog.license.api.a` (статичные c/d), `org.jfrog.license.legacy.LegacyLicenseManager` (при ошибке decrypt возврат null → платформа пробует формат с подписью)
 - **Криптография:** RSA 4096, SHA256withRSA, X.509
 
 ---
@@ -185,6 +185,17 @@ java -jar build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar mkconfig
 - **Библиотека не найдена:** убедитесь, что в `libs/` лежит `artifactory-addons-manager-7.133.9.jar`, версия в `build.gradle.kts` совпадает; при необходимости `./gradlew --stop`.
 - **Агент не загружается:** проверьте путь к JAR в `setenv.sh`, права доступа, версию Java (11+).
 - **Лицензия не принимается:** проверьте, что агент загружен, публичный ключ в конфиге совпадает с ключом, которым подписана лицензия; используйте `verify` для проверки.
+
+### «Invalid license» / «Failed to decrypt license: last block incomplete in decryption»
+
+Ошибка возникает в сервисе **Access (jfac)**: платформа сначала пытается загрузить лицензию как **legacy** (зашифрованный формат) и вызывает `LegacyLicenseManager.decrypt`. Keygen выдаёт лицензию **нового формата** (base64 JSON с подписью), поэтому decrypt падает.
+
+**Что сделано в агенте:** добавлен патч `LegacyLicenseManager`: при исключении в `load()` метод возвращает `null` вместо выброса. Тогда `LicenseManager.loadLicense` может перейти к загрузке лицензии в формате с подписью (который проверяется уже с подставленным публичным ключом).
+
+**Что проверить:**
+1. Пересоберите агент (`./gradlew :ArtifactoryAgent:shadowJar`) и перезапустите Artifactory с новым JAR.
+2. В логах при старте должны быть строки: `Patching class: org.jfrog.license.a.a`, `org.jfrog.license.api.a`, `org.jfrog.license.legacy.LegacyLicenseManager`.
+3. Вставляйте лицензию из Keygen **как одну строку base64** (результат `gen` → «Save to file» или скопированный вывод), без лишних пробелов/переносов.
 
 ### Агент ломает старт Artifactory
 

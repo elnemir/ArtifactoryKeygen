@@ -1,5 +1,6 @@
 package icu.lama.artifactory.agent;
 
+import icu.lama.artifactory.agent.patches.LegacyLicenseManagerPatch;
 import icu.lama.artifactory.agent.patches.PatcherLicenseParser;
 import icu.lama.artifactory.agent.patches.PublicKeyOverrider;
 
@@ -52,6 +53,7 @@ public class AgentMain {
         }
 
         // Only transform on first load (canRetransform=false) to avoid interfering with reloads
+        ins.addTransformer(new LegacyLicenseManagerPatch(), false);  // return null on legacy decrypt failure → fallback to new format
         ins.addTransformer(new PatcherLicenseParser(), false);
         ins.addTransformer(new PublicKeyOverrider(), false);
     }
