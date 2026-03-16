@@ -14,24 +14,26 @@ public class PatcherLicenseParser extends ClassPatch {
         super("org.jfrog.license.api.a", "org.jfrog.license.api.LicenseManager");
     }
 
+    private static final String STRING_TYPE = "java.lang.String";
+
     @Override
     byte[] onTransform(String className, CtClass clazz, byte[] classBuf) throws Throwable {
         var overrides = "";
 
         var publicKeyFieldC = tryGetDeclaredField(clazz, "c"); // 7.9.2 using c
-        if (publicKeyFieldC != null) {
+        if (publicKeyFieldC != null && isStringType(publicKeyFieldC)) {
             publicKeyFieldC.setModifiers(Modifier.PRIVATE + Modifier.STATIC);
             overrides += "c = icu.lama.artifactory.agent.Constants.PUBLIC_KEY;";
         }
 
-        var publicKeyFieldD = tryGetDeclaredField(clazz, "d"); // 7.59 changed to d
-        if (publicKeyFieldD != null) {
+        var publicKeyFieldD = tryGetDeclaredField(clazz, "d"); // 7.59 changed to d; in 7.133.x "d" may be AtomicBoolean!
+        if (publicKeyFieldD != null && isStringType(publicKeyFieldD)) {
             publicKeyFieldD.setModifiers(Modifier.PRIVATE + Modifier.STATIC);
             overrides += "d = icu.lama.artifactory.agent.Constants.PUBLIC_KEY;";
         }
 
-        var publicKeyFieldNObf = tryGetDeclaredField(clazz, "jfrogPublicKey"); // 7.59 in license-manager-7.63.3.jar, no obfuscation version of artifactory-addons-manager
-        if (publicKeyFieldNObf != null) {
+        var publicKeyFieldNObf = tryGetDeclaredField(clazz, "jfrogPublicKey");
+        if (publicKeyFieldNObf != null && isStringType(publicKeyFieldNObf)) {
             publicKeyFieldNObf.setModifiers(Modifier.PRIVATE + Modifier.STATIC);
             overrides += "jfrogPublicKey = icu.lama.artifactory.agent.Constants.PUBLIC_KEY;";
         }
@@ -57,6 +59,15 @@ public class PatcherLicenseParser extends ClassPatch {
 
         clazz.detach();
         return clazz.toBytecode();
+    }
+
+    private static boolean isStringType(CtField field) {
+        try {
+            CtClass type = field.getType();
+            return type != null && STRING_TYPE.equals(type.getName());
+        } catch (Throwable e) {
+            return false;
+        }
     }
 
     private @Nullable CtField tryGetDeclaredField(CtClass clazz, String field) {

@@ -46,9 +46,14 @@ public class AgentMain {
         System.out.println("Artifactory Agent ::   ALERT! USE AT YOUR OWN RISK!       ");
         System.out.println("Artifactory Agent :: =====================================");
 
-        // Patch both possible license classes (different Artifactory versions use different package/obfuscation)
-        ins.addTransformer(new PatcherLicenseParser());   // org.jfrog.license.api.a (static fields c/d)
-        ins.addTransformer(new PublicKeyOverrider());    // org.jfrog.license.a.a (toString + field b)
+        if ("true".equalsIgnoreCase(System.getProperty("artifactory.agent.disabled"))) {
+            System.out.println("Artifactory Agent :: Patching DISABLED by -Dartifactory.agent.disabled=true");
+            return;
+        }
+
+        // Only transform on first load (canRetransform=false) to avoid interfering with reloads
+        ins.addTransformer(new PatcherLicenseParser(), false);
+        ins.addTransformer(new PublicKeyOverrider(), false);
     }
 
     public static void main(String... args) {
