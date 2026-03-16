@@ -2,6 +2,7 @@ package icu.lama.artifactory.agent.patches;
 
 import javassist.ClassPool;
 import javassist.CtClass;
+import javassist.LoaderClassPath;
 
 import java.io.ByteArrayInputStream;
 import java.lang.instrument.ClassFileTransformer;
@@ -20,21 +21,32 @@ abstract public class ClassPatch implements ClassFileTransformer {
     @Override
     public final byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain, byte[] classfileBuffer) throws IllegalClassFormatException {
         var clazz = className.replace("/", ".");
-        if (targetClasses.contains(clazz)) {
-            System.out.println("Artifactory Agent :: Patching Class: " + clazz + ", source = " + protectionDomain.getCodeSource().getLocation().toString());
-            var ctPool = ClassPool.getDefault();
+        if (!targetClasses.contains(clazz)) {
+            return classfileBuffer;
+        }
+        var sourceInfo = protectionDomain != null && protectionDomain.getCodeSource() != null && protectionDomain.getCodeSource().getLocation() != null
+                ? protectionDomain.getCodeSource().getLocation().toString()
+                : "unknown";
+        System.out.println("Artifactory Agent :: Patching class: " + clazz + " (source: " + sourceInfo + ")");
 
-            try {
-                if (classBeingRedefined == null) {
-                    return this.onTransform(clazz, ctPool.makeClass(new ByteArrayInputStream(classfileBuffer)), classfileBuffer);
-                } else {
-                    return this.onRetransform(clazz, ctPool.makeClass(new ByteArrayInputStream(classfileBuffer)), classfileBuffer, classBeingRedefined);
-                }
-            } catch (Throwable t) {
-                t.printStackTrace();
-            }
+        ClassPool ctPool = new ClassPool();
+        if (loader != null) {
+            ctPool.appendClassPath(new LoaderClassPath(loader));
+        } else {
+            ctPool.appendSystemPath();
         }
 
+        try {
+            CtClass ctClass = ctPool.makeClass(new ByteArrayInputStream(classfileBuffer));
+            if (classBeingRedefined == null) {
+                return this.onTransform(clazz, ctClass, classfileBuffer);
+            } else {
+                return this.onRetransform(clazz, ctClass, classfileBuffer, classBeingRedefined);
+            }
+        } catch (Throwable t) {
+            System.err.println("Artifactory Agent :: Failed to patch " + clazz + ": " + t.getMessage());
+            t.printStackTrace();
+        }
         return classfileBuffer;
     }
 
