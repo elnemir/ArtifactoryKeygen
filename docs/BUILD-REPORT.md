@@ -46,11 +46,11 @@ JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0 \
 
 | Library | Version | Size | Source |
 |---------|---------|------|--------|
-| `artifactory-addons-manager` | 7.125.10 | 165 KB | Artifactory Pro Container |
+| `artifactory-addons-manager` | 7.133.9 | ~165 KB | Artifactory 7.133.9 OSS/Pro |
 
 **Extraction Command:**
 ```bash
-podman cp artifactory-pro:/opt/jfrog/artifactory/app/artifactory/tomcat/webapps/artifactory/WEB-INF/lib/artifactory-addons-manager-7.125.10.jar libs/
+podman cp artifactory-pro:/opt/jfrog/artifactory/app/artifactory/tomcat/webapps/artifactory/WEB-INF/lib/artifactory-addons-manager-7.133.9.jar libs/
 ```
 
 ---
@@ -88,7 +88,7 @@ Main-Class: icu.lama.artifactory.keygen.KeygenKt
 - SnakeYAML 2.3
 - Apache HttpClient 4.5.14
 - SLF4J 2.0.16 + Logback 1.5.12
-- JFrog proprietary: artifactory-addons-manager 7.125.10
+- JFrog proprietary: artifactory-addons-manager 7.133.9
 
 ---
 
@@ -228,8 +228,8 @@ podman run --rm -v ./output:/output:Z artifactory-keygen:jit gen
 // Before
 implementation(files("./libs/artifactory-addons-manager-7.90.7.jar"))
 
-// After
-implementation(files("./libs/artifactory-addons-manager-7.125.10.jar"))
+// After (Artifactory 7.133.9)
+implementation(files("./libs/artifactory-addons-manager-7.133.9.jar"))
 ```
 
 ### Java Toolchain Configuration
@@ -346,7 +346,7 @@ podman run --rm -v ./output:/output:Z artifactory-keygen:jit gen
 
 ### Recommended Actions
 
-1. **Testing:** Extensive integration testing with Artifactory Enterprise 7.125.10
+1. **Testing:** Extensive integration testing with Artifactory 7.133.9
 2. **Documentation:** Create user guide with examples
 3. **CI/CD:** Automate builds with GitHub Actions
 4. **Native Image:** Explore GraalVM Native Image compilation for instant startup
@@ -371,7 +371,7 @@ podman run --rm -v ./output:/output:Z artifactory-keygen:jit gen
 ## References
 
 - **Project Repository:** /opt/project/repositories/ArtifactoryKeygen
-- **Artifactory Enterprise:** Version 7.125.10
+- **Artifactory:** Version 7.133.9
 - **Oracle GraalVM:** https://www.oracle.com/java/graalvm/
 - **Gradle Documentation:** https://docs.gradle.org/9.2.1/
 - **Podman:** https://podman.io/

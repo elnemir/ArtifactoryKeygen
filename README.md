@@ -57,9 +57,8 @@
 | **Deployment** | Контейнеризация и развертывание | Podman, Containerfile |
 
 **Тестировано на:**
-- Artifactory 7.104.6 (Latest version)
-- Artifactory 7.9.2 (Latest version на releases-docker.jfrog.io)
-- Artifactory 7.125.10 (Enterprise version)
+- Artifactory 7.133.9 (целевая версия)
+- Artifactory 7.104.6, 7.9.2, 7.125.10 (предыдущие 7.x)
 
 ---
 
@@ -200,7 +199,7 @@ ArtifactoryKeygen/
 │   │           └── PublicKeyOverrider.java
 │   └── build.gradle.kts
 ├── libs/                               # JFrog proprietary библиотеки
-│   ├── artifactory-addons-manager-7.125.10.jar
+│   ├── artifactory-addons-manager-7.133.9.jar
 │   └── README.MD
 ├── deployment/                         # Контейнеризация
 │   ├── containerfiles/
@@ -248,17 +247,17 @@ cd ArtifactoryKeygen
 
 ```bash
 # Скачать Artifactory OSS
-wget https://releases.jfrog.io/artifactory/artifactory-oss/org/artifactory/oss/jfrog-artifactory-oss/7.125.10/jfrog-artifactory-oss-7.125.10-linux.tar.gz
+wget https://releases.jfrog.io/artifactory/artifactory-oss/org/artifactory/oss/jfrog-artifactory-oss/7.133.9/jfrog-artifactory-oss-7.133.9-linux.tar.gz
 
 # Распаковать
-tar -xzf jfrog-artifactory-oss-7.125.10-linux.tar.gz
+tar -xzf jfrog-artifactory-oss-7.133.9-linux.tar.gz
 ```
 
 #### 2.2. Извлечь библиотеку
 
 ```bash
 # Перейти в директорию Tomcat
-cd artifactory-oss-7.125.10/app/artifactory/tomcat/webapps/
+cd artifactory-oss-7.133.9/app/artifactory/tomcat/webapps/
 
 # Распаковать WAR файл
 unzip artifactory.war -d artifactory/
@@ -267,7 +266,7 @@ unzip artifactory.war -d artifactory/
 find artifactory/WEB-INF/lib -name "artifactory-addons-manager*.jar"
 
 # Скопировать в проект
-cp artifactory/WEB-INF/lib/artifactory-addons-manager-7.125.10.jar \
+cp artifactory/WEB-INF/lib/artifactory-addons-manager-7.133.9.jar \
    /path/to/ArtifactoryKeygen/libs/
 ```
 
@@ -275,7 +274,7 @@ cp artifactory/WEB-INF/lib/artifactory-addons-manager-7.125.10.jar \
 
 ```kotlin
 // В файле build.gradle.kts убедитесь, что версия совпадает
-implementation(files("./libs/artifactory-addons-manager-7.125.10.jar"))
+implementation(files("./libs/artifactory-addons-manager-7.133.9.jar"))
 ```
 
 ### Шаг 3: Сборка проекта
@@ -752,7 +751,7 @@ JFrog использует обфускацию имен классов и ме�
 
 **Симптомы:**
 ```
-Could not resolve: artifactory-addons-manager-7.125.10.jar
+Could not resolve: artifactory-addons-manager-7.133.9.jar
 ```
 
 **Решение:**
@@ -851,7 +850,7 @@ Security.addProvider(BouncyCastleProvider())
 
 ### Текущие ограничения
 
-- Работает только с Artifactory 7.x (протестировано на 7.9.2 - 7.125.10)
+- Работает только с Artifactory 7.x (целевая версия 7.133.9; протестировано 7.9.2 - 7.133.9)
 - Требуется ручное извлечение JFrog библиотек
 - Нет автоматической установки Agent
 - Ограниченная поддержка кастомных конфигураций
@@ -874,7 +873,7 @@ podman run -it --rm artifactory-keygen:2.0 gen
 ### Сборка Artifactory с Agent
 
 ```bash
-podman build -t artifactory-cracked:7.104.12 -f Containerfile.artifactory ../..
+podman build -t artifactory-cracked:7.133.9 -f Containerfile.artifactory ../..
 
 # Запуск через podman-compose
 cd deployment

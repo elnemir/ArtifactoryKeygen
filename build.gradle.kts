@@ -32,8 +32,8 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.2")
 
     // JFrog proprietary libraries
-    // NOTE: Extracted from Artifactory Enterprise 7.125.10
-    implementation(files("./libs/artifactory-addons-manager-7.125.10.jar"))
+    // NOTE: Extracted from Artifactory 7.133.9 (place JAR in libs/)
+    implementation(files("./libs/artifactory-addons-manager-7.133.9.jar"))
 
     // YAML processing
     implementation("org.yaml:snakeyaml:2.3")

@@ -21,13 +21,13 @@ public class PatcherLicenseParser extends ClassPatch {
         var publicKeyFieldC = tryGetDeclaredField(clazz, "c"); // 7.9.2 using c
         if (publicKeyFieldC != null) {
             publicKeyFieldC.setModifiers(Modifier.PRIVATE + Modifier.STATIC);
-            overrides += "c = icu.lama.artifactory.agent.AgentMain.PUBLIC_KEY;";
+            overrides += "c = icu.lama.artifactory.agent.Constants.PUBLIC_KEY;";
         }
 
         var publicKeyFieldD = tryGetDeclaredField(clazz, "d"); // 7.59 changed to d
         if (publicKeyFieldD != null) {
             publicKeyFieldD.setModifiers(Modifier.PRIVATE + Modifier.STATIC);
-            overrides += "d = icu.lama.artifactory.agent.AgentMain.PUBLIC_KEY;";
+            overrides += "d = icu.lama.artifactory.agent.Constants.PUBLIC_KEY;";
         }
 
         var publicKeyFieldNObf = tryGetDeclaredField(clazz, "jfrogPublicKey"); // 7.59 in license-manager-7.63.3.jar, no obfuscation version of artifactory-addons-manager
@@ -36,11 +36,13 @@ public class PatcherLicenseParser extends ClassPatch {
             overrides += "jfrogPublicKey = icu.lama.artifactory.agent.Constants.PUBLIC_KEY;";
         }
 
+        if (overrides.isEmpty()) {
+            return classfileBuffer;
+        }
         var clinitMethod = Arrays.stream(clazz.getDeclaredBehaviors()).filter((it) -> "<clinit>".equals(it.getMethodInfo().getName())).findAny();
         if (clinitMethod.isEmpty()) {
-            throw new Throwable("Corrupted class!");
+            return classfileBuffer;
         }
-
         clinitMethod.get().insertAfter(overrides);
 
         // val methodParseLicense = ctClass.getMethod("a", "(Ljava/lang/String;)Lorg/jfrog/license/api/License;")
