@@ -18,11 +18,11 @@ public class PublicKeyOverrider extends ClassPatch {
         try {
             clazz.getDeclaredField("b");
         } catch (NotFoundException e) {
-            return classfileBuffer;
+            return classBuf;
         }
         Optional<CtBehavior> ctToStringOpt = Arrays.stream(clazz.getDeclaredBehaviors()).filter((it) -> "toString".equals(it.getMethodInfo().getName())).findAny();
         if (ctToStringOpt.isEmpty()) {
-            return classfileBuffer;
+            return classBuf;
         }
         CtBehavior ctToString = ctToStringOpt.get();
         ctToString.setBody(

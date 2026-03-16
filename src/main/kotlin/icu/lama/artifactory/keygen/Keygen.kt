@@ -172,22 +172,14 @@ fun main(vararg args: String) {
 
         "mkconfig" -> {
             val key = prompt("Enter your RSA Public Key (X.509 format): ")
-            if (key.isBlank()) {
-                println("Key must not be null or blank!")
-                return@when
-            }
-            try {
-                val x509Key = X509EncodedKeySpec(Base64.getDecoder().decode(key.trim()))
-                val parsedKey = KeyFactory.getInstance("RSA", BCProviderFactory.getProvider()).generatePublic(x509Key) as RSAPublicKey
-                if (parsedKey.modulus.bitLength() < 4096) {
-                    throw Exception("Key is too short")
-                }
-            } catch (err: Exception) {
-                err.printStackTrace()
-                println("Illegal key! Please make sure your key is a standard RSA public key in X509 format and at least 4096 bits long.")
-                return@when
-            }
-            val doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument()
+            if (!key.isBlank()) {
+                try {
+                    val x509Key = X509EncodedKeySpec(Base64.getDecoder().decode(key.trim()))
+                    val parsedKey = KeyFactory.getInstance("RSA", BCProviderFactory.getProvider()).generatePublic(x509Key) as RSAPublicKey
+                    if (parsedKey.modulus.bitLength() < 4096) {
+                        throw Exception("Key is too short")
+                    }
+                    val doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument()
             val root = doc.createElement("config")
             doc.appendChild(root)
             val keyEl = doc.createElement("publicKey")
@@ -203,6 +195,13 @@ fun main(vararg args: String) {
             println()
             println("Add to setenv.sh:")
             println("CATALINA_OPTS=\"\$CATALINA_OPTS -javaagent:/path/to/agent.jar=$configHex\"")
+                } catch (err: Exception) {
+                    err.printStackTrace()
+                    println("Illegal key! Please make sure your key is a standard RSA public key in X.509 format and at least 4096 bits long.")
+                }
+            } else {
+                println("Key must not be null or blank!")
+            }
         }
 
         "verifyAgent" -> {

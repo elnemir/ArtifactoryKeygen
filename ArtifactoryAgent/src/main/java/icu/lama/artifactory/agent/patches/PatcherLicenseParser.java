@@ -37,11 +37,11 @@ public class PatcherLicenseParser extends ClassPatch {
         }
 
         if (overrides.isEmpty()) {
-            return classfileBuffer;
+            return classBuf;
         }
         var clinitMethod = Arrays.stream(clazz.getDeclaredBehaviors()).filter((it) -> "<clinit>".equals(it.getMethodInfo().getName())).findAny();
         if (clinitMethod.isEmpty()) {
-            return classfileBuffer;
+            return classBuf;
         }
         clinitMethod.get().insertAfter(overrides);
 
