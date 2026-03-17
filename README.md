@@ -148,19 +148,33 @@ java -jar build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar mkconfig
 
 ### ArtifactoryAgent
 
-1. Скопировать JAR в каталог Tomcat:  
-   `cp ArtifactoryAgent/build/libs/ArtifactoryAgent-2.0-SNAPSHOT-all.jar /opt/jfrog/artifactory/app/artifactory/tomcat/lib/`
+Платформа JFrog в Docker/standalone запускает **два отдельных процесса (две JVM)**:
+- **Artifactory (jfrt)** — томкат `app/artifactory/tomcat`
+- **Access (jfac)** — томкат `app/access/tomcat`
 
-2. В `setenv.sh` (или аналог) добавить:
+Проверка лицензии в формате с подписью и класс `LegacyLicenseManager` используются в **Access (jfac)**. Поэтому **агент нужно подключать к обеим JVM**: и к Artifactory, и к Access. Если агент указан только у Artifactory, в логах будет «Patching class» только при загрузке jfrt, а ошибка «Invalid license» будет идти из jfac, где классы не патчатся.
+
+1. Скопировать JAR агента в оба каталога (или в общее место и указать один путь):
    ```bash
-   CATALINA_OPTS="$CATALINA_OPTS -javaagent:/path/to/ArtifactoryAgent-2.0-SNAPSHOT-all.jar"
+   cp ArtifactoryAgent/build/libs/ArtifactoryAgent-2.0-SNAPSHOT-all.jar /opt/jfrog/artifactory/app/artifactory/tomcat/lib/
+   cp ArtifactoryAgent/build/libs/ArtifactoryAgent-2.0-SNAPSHOT-all.jar /opt/jfrog/artifactory/app/access/tomcat/lib/
    ```
-   При необходимости передать конфиг с публичным ключом:  
-   `-javaagent:/path/to/agent.jar=<HEX из mkconfig>`
 
-3. Перезапустить Artifactory.
+2. **Artifactory (jfrt):** в `app/artifactory/tomcat/bin/setenv.sh` (или аналог) добавить:
+   ```bash
+   CATALINA_OPTS="$CATALINA_OPTS -javaagent:/opt/jfrog/artifactory/app/artifactory/tomcat/lib/ArtifactoryAgent-2.0-SNAPSHOT-all.jar"
+   ```
+   При необходимости передать конфиг: `-javaagent:.../agent.jar=<HEX из mkconfig>`
 
-В логах должны появиться сообщения о загрузке агента и патчинге классов.
+3. **Access (jfac):** в `app/access/tomcat/bin/setenv.sh` добавить ту же опцию для своего томката:
+   ```bash
+   CATALINA_OPTS="$CATALINA_OPTS -javaagent:/opt/jfrog/artifactory/app/access/tomcat/lib/ArtifactoryAgent-2.0-SNAPSHOT-all.jar"
+   ```
+   В Docker-образе файл может генерироваться из шаблона; тогда нужно либо смонтировать свой `setenv.sh` для Access, либо задать переменную окружения, которую скрипт запуска Access подхватывает (например `JF_ACCESS_OPTS` или аналог — зависит от версии образа). В репозитории есть пример `JfrogDockerfile/setenv-access.sh` — его можно копировать в образ в `app/access/tomcat/bin/setenv.sh` или монтировать при запуске контейнера.
+
+4. Перезапустить платформу.
+
+В логах при старте **обоих** процессов должны появиться блоки «Artifactory Agent :: Is now LOADED!» и «Patching class: org.jfrog.license...» (в т.ч. `org.jfrog.license.legacy.LegacyLicenseManager`). Если только один такой блок — агент подключён только к одной JVM.
 
 ---
 
@@ -192,10 +206,12 @@ java -jar build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar mkconfig
 
 **Что сделано в агенте:** добавлен патч `LegacyLicenseManager`: при исключении в `load()` метод возвращает `null` вместо выброса. Тогда `LicenseManager.loadLicense` может перейти к загрузке лицензии в формате с подписью (который проверяется уже с подставленным публичным ключом).
 
+**Почему патчинг «не срабатывает» в логах:** в типичном запуске **Artifactory (jfrt)** и **Access (jfac)** — это два разных процесса (два PID). Агент подключается только к той JVM, в которой указан `-javaagent`. Если вы добавили агент только в `app/artifactory/.../setenv.sh`, то патчатся только классы jfrt; лицензию же проверяет **jfac**, и там агента нет → «Invalid license». Решение: добавить `-javaagent` также в опции JVM **Access** (см. раздел ArtifactoryAgent выше).
+
 **Что проверить:**
-1. Положите `artifactory-addons-manager-7.133.9.jar` в `libs/` (если собираете Keygen). Для агента этот JAR не нужен в classpath при запуске — агент патчит классы уже в JVM Artifactory.
-2. Пересоберите агент: `./gradlew :ArtifactoryAgent:shadowJar` — и перезапустите Artifactory с этим JAR в `-javaagent`.
-3. В логах при старте должны быть строки: `Patching class: org.jfrog.license.a.a`, `org.jfrog.license.api.a`, `org.jfrog.license.legacy.LegacyLicenseManager` (при необходимости — с пометкой «bootstrap loader»). Если строки про `LegacyLicenseManager` нет — класс мог загружаться до агента или в другом процессе; убедитесь, что `-javaagent` указан для того же JVM, где крутится Access (jfac).
+1. Положите `artifactory-addons-manager-7.133.9.jar` в `libs/` (если собираете Keygen). Для агента этот JAR не нужен в classpath при запуске — агент патчит классы уже в JVM.
+2. Пересоберите агент: `./gradlew :ArtifactoryAgent:shadowJar`. Подключите один и тот же JAR к **обоим** процессам: Artifactory и Access.
+3. В логах при старте должны быть **два** набора сообщений «Artifactory Agent :: Is now LOADED!» и «Patching class: ...» (один раз при старте jfrt, один раз при старте jfac). В каждом наборе должна быть строка `Patching class: org.jfrog.license.legacy.LegacyLicenseManager`. Если её нет вообще — агент не подключён к процессу Access (jfac).
 4. Вставляйте лицензию из Keygen **одной строкой base64**, без лишних пробелов и переносов.
 
 ### Агент ломает старт Artifactory
