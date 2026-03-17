@@ -77,7 +77,7 @@ Artifactory → проверка лицензии с подставленным 
 
 - **Сборка:** Java JDK 25+, Gradle 8.x (Gradle Wrapper в проекте)
 - **Запуск:** JVM 11+, Artifactory 7.x
-- **Библиотека:** `artifactory-addons-manager-7.133.9.jar` в `libs/` (извлекается из WAR Artifactory 7.133.9)
+- **Библиотека:** для сборки и работы Keygen (gen, verify, mkconfig) **JAR не нужен**. Папка `libs/` опциональна — только если нужна команда `verifyAgent` (проверка агента с подставленным ключом при наличии artifactory-addons-manager в classpath).
 
 ---
 
@@ -85,10 +85,10 @@ Artifactory → проверка лицензии с подставленным 
 
 ```
 ArtifactoryKeygen/
-├── src/main/kotlin/icu/lama/artifactory/keygen/   # Генератор (Keygen.kt)
-├── src/main/java/org/jfrog/                       # Декомпилированные классы JFrog
+├── src/main/kotlin/icu/lama/artifactory/keygen/   # Генератор (Keygen.kt, модели лицензии, подпись/верификация)
+├── src/main/java/org/jfrog/                       # ObfuscatedString, BCProviderFactory (без зависимости от JAR)
 ├── ArtifactoryAgent/                              # Java-агент
-├── libs/                                          # artifactory-addons-manager-7.133.9.jar
+├── libs/                                          # опционально: artifactory-addons-manager для verifyAgent
 ├── deployment/                                    # Containerfile, podman-compose
 ├── docs/                                          # Документация и отчёты
 ├── build.gradle.kts
@@ -100,25 +100,24 @@ ArtifactoryKeygen/
 
 ## Установка и сборка
 
-### 1. Клонирование и подготовка libs
+### 1. Клонирование
 
 ```bash
 git clone https://github.com/dantte-lp/ArtifactoryKeygen.git
 cd ArtifactoryKeygen
 ```
 
-Положите в `libs/` файл `artifactory-addons-manager-7.133.9.jar`, извлечённый из `artifactory.war` (WEB-INF/lib) дистрибутива Artifactory 7.133.9.
+Для сборки и работы Keygen (gen, verify, mkconfig) дополнительные JAR не требуются.
 
 ### 2. Сборка
 
 ```bash
 ./gradlew :shadowJar
-./gradlew :ArtifactoryAgent:shadowJar
 # или
 ./gradlew clean build shadowJar
 ```
 
-Артефакты: `build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar`, `ArtifactoryAgent/build/libs/ArtifactoryAgent-2.0-SNAPSHOT-all.jar`.
+Артефакт: `build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar` (содержит **и Keygen, и Agent**).
 
 ---
 
@@ -148,6 +147,8 @@ java -jar build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar mkconfig
 
 ### ArtifactoryAgent
 
+Один и тот же файл `build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar` можно использовать как **CLI** (`java -jar ...`) и как **Java Agent** (`-javaagent:...`).
+
 Платформа JFrog в Docker/standalone запускает **два отдельных процесса (две JVM)**:
 - **Artifactory (jfrt)** — томкат `app/artifactory/tomcat`
 - **Access (jfac)** — томкат `app/access/tomcat`
@@ -156,19 +157,19 @@ java -jar build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar mkconfig
 
 1. Скопировать JAR агента в оба каталога (или в общее место и указать один путь):
    ```bash
-   cp ArtifactoryAgent/build/libs/ArtifactoryAgent-2.0-SNAPSHOT-all.jar /opt/jfrog/artifactory/app/artifactory/tomcat/lib/
-   cp ArtifactoryAgent/build/libs/ArtifactoryAgent-2.0-SNAPSHOT-all.jar /opt/jfrog/artifactory/app/access/tomcat/lib/
+   cp build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar /opt/jfrog/artifactory/app/artifactory/tomcat/lib/ArtifactoryAgent.jar
+   cp build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar /opt/jfrog/artifactory/app/access/tomcat/lib/ArtifactoryAgent.jar
    ```
 
 2. **Artifactory (jfrt):** в `app/artifactory/tomcat/bin/setenv.sh` (или аналог) добавить:
    ```bash
-   CATALINA_OPTS="$CATALINA_OPTS -javaagent:/opt/jfrog/artifactory/app/artifactory/tomcat/lib/ArtifactoryAgent-2.0-SNAPSHOT-all.jar"
+   CATALINA_OPTS="$CATALINA_OPTS -javaagent:/opt/jfrog/artifactory/app/artifactory/tomcat/lib/ArtifactoryAgent.jar"
    ```
    При необходимости передать конфиг: `-javaagent:.../agent.jar=<HEX из mkconfig>`
 
 3. **Access (jfac):** в `app/access/tomcat/bin/setenv.sh` добавить ту же опцию для своего томката:
    ```bash
-   CATALINA_OPTS="$CATALINA_OPTS -javaagent:/opt/jfrog/artifactory/app/access/tomcat/lib/ArtifactoryAgent-2.0-SNAPSHOT-all.jar"
+   CATALINA_OPTS="$CATALINA_OPTS -javaagent:/opt/jfrog/artifactory/app/access/tomcat/lib/ArtifactoryAgent.jar"
    ```
    В Docker-образе файл может генерироваться из шаблона; тогда нужно либо смонтировать свой `setenv.sh` для Access, либо задать переменную окружения, которую скрипт запуска Access подхватывает (например `JF_ACCESS_OPTS` или аналог — зависит от версии образа). В репозитории есть пример `JfrogDockerfile/setenv-access.sh` — его можно копировать в образ в `app/access/tomcat/bin/setenv.sh` или монтировать при запуске контейнера.
 
@@ -196,7 +197,7 @@ java -jar build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar mkconfig
 
 ## Troubleshooting
 
-- **Библиотека не найдена:** убедитесь, что в `libs/` лежит `artifactory-addons-manager-7.133.9.jar`, версия в `build.gradle.kts` совпадает; при необходимости `./gradlew --stop`.
+- **Библиотека не найдена:** для Keygen (gen/verify) JAR в `libs/` не нужен. Если ошибка касается другого модуля или `verifyAgent`, см. раздел про агент.
 - **Агент не загружается:** проверьте путь к JAR в `setenv.sh`, права доступа, версию Java (11+).
 - **Лицензия не принимается:** проверьте, что агент загружен, публичный ключ в конфиге совпадает с ключом, которым подписана лицензия; используйте `verify` для проверки.
 
@@ -209,7 +210,7 @@ java -jar build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar mkconfig
 **Почему патчинг «не срабатывает» в логах:** в типичном запуске **Artifactory (jfrt)** и **Access (jfac)** — это два разных процесса (два PID). Агент подключается только к той JVM, в которой указан `-javaagent`. Если вы добавили агент только в `app/artifactory/.../setenv.sh`, то патчатся только классы jfrt; лицензию же проверяет **jfac**, и там агента нет → «Invalid license». Решение: добавить `-javaagent` также в опции JVM **Access** (см. раздел ArtifactoryAgent выше).
 
 **Что проверить:**
-1. Положите `artifactory-addons-manager-7.133.9.jar` в `libs/` (если собираете Keygen). Для агента этот JAR не нужен в classpath при запуске — агент патчит классы уже в JVM.
+1. Для Keygen JAR в `libs/` не требуется. Для агента этот JAR не нужен в classpath при запуске — агент патчит классы уже в JVM.
 2. Пересоберите агент: `./gradlew :ArtifactoryAgent:shadowJar`. Подключите один и тот же JAR к **обоим** процессам: Artifactory и Access.
 3. В логах при старте должны быть **два** набора сообщений «Artifactory Agent :: Is now LOADED!» и «Patching class: ...» (один раз при старте jfrt, один раз при старте jfac). В каждом наборе должна быть строка `Patching class: org.jfrog.license.legacy.LegacyLicenseManager`. Если её нет вообще — агент не подключён к процессу Access (jfac).
 4. Вставляйте лицензию из Keygen **одной строкой base64**, без лишних пробелов и переносов.

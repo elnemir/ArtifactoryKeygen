@@ -22,6 +22,9 @@ dependencies {
     implementation("commons-cli:commons-cli:1.9.0")
     implementation("commons-codec:commons-codec:1.17.1")
 
+    // Include ArtifactoryAgent classes + dependencies into single shadow JAR
+    implementation(project(":ArtifactoryAgent"))
+
     // Cryptography - BouncyCastle
     implementation("org.bouncycastle:bcprov-jdk18on:1.79")
 
@@ -30,10 +33,6 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-databind:2.18.2")
     implementation("com.fasterxml.jackson.core:jackson-annotations:2.18.2")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.2")
-
-    // JFrog proprietary libraries
-    // NOTE: Extracted from Artifactory 7.133.9 (place JAR in libs/)
-    implementation(files("./libs/artifactory-addons-manager-7.133.9.jar"))
 
     // YAML processing
     implementation("org.yaml:snakeyaml:2.3")
@@ -69,5 +68,8 @@ tasks.withType<Test> {
 tasks.withType<ShadowJar> {
     manifest {
         attributes["Main-Class"] = "icu.lama.artifactory.keygen.KeygenKt"
+        attributes["Premain-Class"] = "icu.lama.artifactory.agent.AgentMain"
+        attributes["Can-Redefine-Classes"] = true
+        attributes["Can-Retransform-Classes"] = true
     }
 }

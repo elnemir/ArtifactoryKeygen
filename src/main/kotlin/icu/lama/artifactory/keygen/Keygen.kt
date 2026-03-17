@@ -1,23 +1,12 @@
 package icu.lama.artifactory.keygen
 
+import icu.lama.artifactory.keygen.model.LicenseProduct
 import org.jfrog.license.a.ObfuscatedString
-import com.fasterxml.jackson.core.JsonEncoding
-import com.fasterxml.jackson.core.JsonFactory
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.annotation.JsonInclude
-import org.jfrog.license.api.Product
-import org.jfrog.license.exception.LicenseRuntimeException
-import org.jfrog.license.multiplatform.License
-import org.jfrog.license.multiplatform.SignedLicense
-import org.jfrog.license.multiplatform.SignedProduct
 import org.jfrog.security.util.BCProviderFactory
 import org.yaml.snakeyaml.Yaml
-import java.io.ByteArrayOutputStream
-import java.io.IOException
 import java.io.StringWriter
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
-import java.security.Signature
 import java.security.interfaces.RSAPublicKey
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
@@ -82,10 +71,10 @@ fun main(vararg args: String) {
             cal.add(Calendar.DAY_OF_YEAR, validDays)
             val validThrough = cal.time
             val validThroughFormatted = SimpleDateFormat("yyyy-MM-dd").format(validThrough)
+            val now = Date()
 
-            val private = KeyFactory.getInstance("RSA", BCProviderFactory.getProvider()).generatePrivate(PKCS8EncodedKeySpec(Base64.getDecoder().decode(Constants.PRIVATE_KEY)))
-            val sign = Signature.getInstance("SHA256withRSA", BCProviderFactory.getProvider())
-            val products = mutableMapOf<String, SignedProduct>()
+            val privateKey = KeyFactory.getInstance("RSA", BCProviderFactory.getProvider()).generatePrivate(PKCS8EncodedKeySpec(Base64.getDecoder().decode(Constants.PRIVATE_KEY))) as java.security.interfaces.RSAPrivateKey
+            val products = mutableMapOf<String, LicenseProduct>()
 
             while (true) {
                 val productId = prompt("Enter product id: ", "artifactory")
@@ -94,26 +83,21 @@ fun main(vararg args: String) {
                     continue
                 }
                 val owner = prompt("  Owner [$licensedTo]: ", licensedTo)
-                val product = Product()
-                product.id = productId
-                product.expires = validThrough
-                product.isTrial = (licenseTypeStr == "trial")
-                product.owner = owner.ifEmpty { licensedTo }
-                product.validFrom = Date()
-                product.type = Product.Type.ENTERPRISE_PLUS
-                products[product.id] = SignedProduct(product, private, sign)
+                val product = LicenseProduct(
+                    id = productId,
+                    expires = validThrough.time,
+                    validFrom = now.time,
+                    owner = owner.ifEmpty { licensedTo },
+                    type = "ENTERPRISE_PLUS",
+                    isTrial = (licenseTypeStr == "trial")
+                )
+                products[product.id] = product
                 if (prompt("Add more products to this license? [y/N]: ", listOf("y", "n", "yes", "no"), "n").lowercase() in listOf("n", "no")) break
             }
 
-            val license = License()
-            license.version = 2
-            license.validateOnline = false
-            license.products = products
-            val sLicense = SignedLicense(license, private, sign)
-
             println("Generating license...")
             println()
-            val licenseB64 = createFinalLicense(sLicense)
+            val licenseB64 = LicenseSigner.buildAndSignLicense(products, validateOnline = false, privateKey = privateKey)
             val licenseTypeDisplay = licenseTypeStr.replaceFirstChar { it.uppercase() }
             println("===== LICENSE =====")
             println("""
@@ -148,13 +132,12 @@ fun main(vararg args: String) {
                 licenseInput
             }
             runCatching {
-                val a = org.jfrog.license.api.a()
-                a.b(licenseStr, Constants.PUBLIC_KEY)
+                val publicKey = KeyFactory.getInstance("RSA", BCProviderFactory.getProvider()).generatePublic(X509EncodedKeySpec(Base64.getDecoder().decode(Constants.PUBLIC_KEY))) as RSAPublicKey
+                val payload = LicenseVerifier.verify(licenseStr, publicKey)
+                println(Yaml().dump(payload))
             }.onFailure {
                 it.printStackTrace()
                 println("Invalid license or signature.")
-            }.onSuccess {
-                println(Yaml().dump(it))
             }
         }
 
@@ -205,13 +188,18 @@ fun main(vararg args: String) {
         }
 
         "verifyAgent" -> {
-            val keyField = org.jfrog.license.api.a::class.java.getDeclaredField("d")
-            keyField.trySetAccessible()
-            val keyFound = keyField.get(null)
-            if (keyFound == "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmquSyL1wSs6DvU5iceNvbfha4MPX040iHFuoBTeEZA43rsHWLNLIECmVJ3Zv1xV9+NkrORKQEuJckEXzbTHSrpzZDfF/sjlKhalHKN3joNgIoIFG5MoM9kPFEB0mAJx/Hpiojj+/LZ5uTHIWiEGKm6C4EQQL9F+2FpcQbj6ve26t03YNZVIhzgmGw4TEb/1WXje7ywtMv3bGkKqAak6VoTKnn4MOm3ULzck9K+KPIgOd01Wa00PPbVqitB7Tqej7y3wZKMPxgzM0n7fouH7lu0yowiV+V5SyO/6g/Wq+DNgniKpnbcFsVLxFE7LcyHr94cAorBH+EUcepGKqqml4cQIDAQAB") {
-                println("Validation Failed!")
-            } else {
-                println("Validation Success! New key is: $keyFound")
+            runCatching {
+                val clazz = Class.forName("org.jfrog.license.api.a")
+                val keyField = clazz.getDeclaredField("d")
+                keyField.trySetAccessible()
+                val keyFound = keyField.get(null)
+                if (keyFound == "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmquSyL1wSs6DvU5iceNvbfha4MPX040iHFuoBTeEZA43rsHWLNLIECmVJ3Zv1xV9+NkrORKQEuJckEXzbTHSrpzZDfF/sjlKhalHKN3joNgIoIFG5MoM9kPFEB0mAJx/Hpiojj+/LZ5uTHIWiEGKm6C4EQQL9F+2FpcQbj6ve26t03YNZVIhzgmGw4TEb/1WXje7ywtMv3bGkKqAak6VoTKnn4MOm3ULzck9K+KPIgOd01Wa00PPbVqitB7Tqej7y3wZKMPxgzM0n7fouH7lu0yowiV+V5SyO/6g/Wq+DNgniKpnbcFsVLxFE7LcyHr94cAorBH+EUcepGKqqml4cQIDAQAB") {
+                    println("Validation Failed!")
+                } else {
+                    println("Validation Success! New key is: $keyFound")
+                }
+            }.onFailure {
+                println("verifyAgent requires artifactory-addons-manager JAR on classpath and ArtifactoryAgent attached via -javaagent.")
             }
         }
 
@@ -277,21 +265,5 @@ fun date(yrs: Int, mo: Int, dys: Int): Date {
 }
 
 fun ByteArray.toHex(): String = joinToString(separator = "") { eachByte -> "%02x".format(eachByte) }
-
-fun createFinalLicense(obj: Any): String {
-    val bos = ByteArrayOutputStream()
-    try {
-        val factory = JsonFactory()
-        val generator = factory.createGenerator(bos, JsonEncoding.UTF8)
-        val objectMapper = ObjectMapper(factory)
-        objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL)
-        generator.setCodec(objectMapper)
-        generator.writeObject(obj)
-        generator.close()
-    } catch (e: IOException) {
-        throw LicenseRuntimeException("Failed to serialize license", e)
-    }
-    return Base64.getEncoder().encodeToString(bos.toByteArray())
-}
 
 fun chunkString(str: String, chunkLength: Int = 76) = str.chunked(chunkLength).joinToString("\n")
