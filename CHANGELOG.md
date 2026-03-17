@@ -7,6 +7,9 @@
 
 ## [2.0-SNAPSHOT] - 2025-12-26
 
+### Added (2025-03)
+- Поддержка Artifactory 7.133.9: обновлена зависимость `artifactory-addons-manager` до 7.133.9
+
 ### Added
 - Поддержка Java 25 LTS
 - Логирование через SLF4J и Logback
@@ -49,7 +52,7 @@
 - Добавлены комментарии для JFrog библиотек
 
 ### Technical Debt
-- TODO: Извлечь artifactory-addons-manager-7.125.9.jar из официального WAR
+- TODO: Извлечь artifactory-addons-manager-7.133.9.jar из официального WAR (releases.jfrog.io)
 - TODO: Добавить unit тесты с покрытием >70%
 - TODO: Рефакторинг структуры кода (Command Pattern)
 - TODO: Миграция на de-obfuscated LicenseManager

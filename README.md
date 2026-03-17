@@ -1,4 +1,4 @@
-# ArtifactoryKeygen - Генератор ключей для JFrog Artifactory
+# ArtifactoryKeygen — генератор ключей для JFrog Artifactory
 
 ![Version](https://img.shields.io/badge/version-2.0--SNAPSHOT-blue)
 ![Java](https://img.shields.io/badge/Java-25-orange?logo=openjdk&logoColor=white)
@@ -20,158 +20,64 @@
 - [Структура проекта](#структура-проекта)
 - [Установка и сборка](#установка-и-сборка)
 - [Использование](#использование)
-  - [ArtifactoryKeygen](#artifactorykeygen)
-  - [ArtifactoryAgent](#artifactoryagent)
-- [Диаграммы и схемы](#диаграммы-и-схемы)
 - [Конфигурация](#конфигурация)
 - [Технические детали](#технические-детали)
 - [Troubleshooting](#troubleshooting)
-- [Roadmap](#roadmap)
 - [Лицензия](#лицензия)
 
 ---
 
 ## Описание проекта
 
-**ArtifactoryKeygen** - это образовательный проект университета по информационной безопасности и реверс-инжинирингу, демонстрирующий:
+**ArtifactoryKeygen** — образовательный проект по информационной безопасности и реверс-инжинирингу. Демонстрирует:
 
 - Механизмы лицензирования enterprise-систем (JFrog Artifactory)
-- Криптографические протоколы (RSA 4096, X.509)
+- Криптографию (RSA 4096, X.509)
 - Техники reverse engineering Java-приложений
-- Использование Java Agent для runtime модификации классов
-- Работу с bytecode instrumentation
+- Java Agent для runtime-модификации классов и bytecode instrumentation
 
-### Образовательные цели
+### Компоненты
 
-1. **Информационная безопасность:** изучение методов защиты программного обеспечения
-2. **Reverse Engineering:** анализ обфусцированного кода и восстановление алгоритмов
-3. **Криптография:** практическое применение RSA, X.509, цифровых подписей
-4. **Java Instrumentation:** модификация классов во время выполнения (Java Agent API)
-
-### Компоненты проекта
-
-| Компонент | Назначение | Технологии |
-|-----------|------------|------------|
+| Компонент           | Назначение                    | Технологии              |
+|---------------------|-------------------------------|-------------------------|
 | **ArtifactoryKeygen** | Генерация лицензионных ключей | Kotlin, BouncyCastle, Jackson |
-| **ArtifactoryAgent** | Java-агент для runtime патчинга | Java 25, Javassist |
-| **Deployment** | Контейнеризация и развертывание | Podman, Containerfile |
+| **ArtifactoryAgent**  | Java-агент для runtime-патчинга | Java 25, Javassist     |
 
-**Тестировано на:**
-- Artifactory 7.104.6 (Latest version)
-- Artifactory 7.9.2 (Latest version на releases-docker.jfrog.io)
-- Artifactory 7.125.10 (Enterprise version)
+**Тестировано на:** Artifactory 7.133.9 (целевая версия), 7.104.6, 7.9.2, 7.125.10.
 
 ---
 
 ## Важные предупреждения
 
-### Юридическая ответственность
-
-**ВНИМАНИЕ! ВЫ НЕ ДОЛЖНЫ ИСПОЛЬЗОВАТЬ ЭТОТ ПРОЕКТ ДЛЯ:**
+**ВНИМАНИЕ. НЕ ИСПОЛЬЗУЙТЕ ПРОЕКТ ДЛЯ:**
 
 - Незаконного обхода лицензий JFrog Artifactory
 - Коммерческого использования без лицензии JFrog
-- Нарушения законодательства вашей страны
-- Любых нелегальных действий
+- Нарушения законодательства
 
-**ВСЕ ПОСЛЕДСТВИЯ ИСПОЛЬЗОВАНИЯ ДАННОГО ПО НЕСЕТ ПОЛЬЗОВАТЕЛЬ**
+**ВСЕ ПОСЛЕДСТВИЯ ИСПОЛЬЗОВАНИЯ НЕСЁТ ПОЛЬЗОВАТЕЛЬ.**
 
-### Образовательное использование
-
-Проект создан **исключительно в образовательных целях**:
-- Академические исследования в университете
-- Изучение методов защиты ПО
-- Практика reverse engineering
-- Понимание механизмов криптографической защиты
-
-### Лицензия
+Проект создан **исключительно в образовательных целях**: академические исследования, изучение защиты ПО, практика reverse engineering.
 
 [![LICENSE](https://img.shields.io/badge/license-Anti%20996-blue.svg)](https://github.com/996icu/996.ICU/blob/master/LICENSE)
-
-Проект распространяется под лицензией Anti-996, запрещающей использование в компаниях с режимом работы "996" (9:00-21:00, 6 дней в неделю).
 
 ---
 
 ## Архитектура системы
 
-```mermaid
-graph TB
-    subgraph "ArtifactoryKeygen"
-        KG[Keygen Main]
-        KGEN[License Generator]
-        CRYPTO[Crypto Module<br/>RSA 4096]
-        CONFIG[Config Generator]
-    end
-
-    subgraph "ArtifactoryAgent"
-        AGENT[Agent Main]
-        PATCHER[Class Patcher]
-        PUBKEY[PublicKey Overrider]
-        LICENSE[License Parser Patch]
-    end
-
-    subgraph "Artifactory Application"
-        TOMCAT[Tomcat Server]
-        ARTCORE[Artifactory Core]
-        LICMGR[License Manager]
-        OBFCLASS[Obfuscated Classes]
-    end
-
-    KG --> KGEN
-    KGEN --> CRYPTO
-    KG --> CONFIG
-    CONFIG --> AGENT
-
-    AGENT --> PATCHER
-    PATCHER --> PUBKEY
-    PATCHER --> LICENSE
-
-    TOMCAT -->|Java Agent| AGENT
-    AGENT -->|Patch Classes| LICMGR
-    LICMGR --> OBFCLASS
-
-    style KGEN fill:#4CAF50,color:#fff
-    style AGENT fill:#FF9800,color:#fff
-    style CRYPTO fill:#2196F3,color:#fff
+```
+Keygen (gen/genkey/verify/mkconfig) → RSA 4096, подпись лицензий
+Agent (-javaagent) → патчинг org.jfrog.license (a.a, api.a — подмена ключа; legacy.LegacyLicenseManager — возврат null при ошибке decrypt → переход на формат с подписью)
+Artifactory → проверка лицензии с подставленным ключом
 ```
 
 ---
 
 ## Требования
 
-### Системные требования
-
-| Компонент | Минимум | Рекомендуется |
-|-----------|---------|---------------|
-| **RAM** | 2 GB | 4 GB+ |
-| **CPU** | 2 cores | 4 cores+ |
-| **Disk** | 5 GB | 10 GB+ |
-
-### Программное обеспечение
-
-#### Для сборки проекта
-
-- **Java JDK:** 25+ (с поддержкой Project Loom, Virtual Threads)
-- **Gradle:** 8.x (используется Gradle Wrapper)
-- **Git:** для клонирования репозитория
-
-#### Для запуска
-
-- **Java Runtime:** 11+ (минимум)
-- **Artifactory:** 7.x (OSS или Enterprise)
-
-### Проверка версий
-
-```bash
-java -version
-# openjdk version "25" 2025-09-16
-
-./gradlew --version
-# Gradle 8.x
-# Kotlin: 2.1.20
-# Groovy: 3.0.x
-# JVM: 25
-```
+- **Сборка:** Java JDK 25+, Gradle 8.x (Gradle Wrapper в проекте)
+- **Запуск:** JVM 11+, Artifactory 7.x
+- **Библиотека:** `artifactory-addons-manager-7.133.9.jar` в `libs/` (извлекается из WAR Artifactory 7.133.9)
 
 ---
 
@@ -179,127 +85,40 @@ java -version
 
 ```
 ArtifactoryKeygen/
-├── src/                                 # Исходный код Keygen
-│   └── main/
-│       ├── kotlin/
-│       │   └── icu/lama/artifactory/keygen/
-│       │       └── Keygen.kt           # Главный класс генератора
-│       └── java/
-│           ├── org/jfrog/license/a/
-│           │   └── ObfuscatedString.java  # Декомпилированный класс
-│           └── org/jfrog/client/util/
-│               └── ServicelistLoader.java
-├── ArtifactoryAgent/                   # Java-агент для патчинга
-│   ├── src/
-│   │   └── main/java/icu/lama/artifactory/agent/
-│   │       ├── AgentMain.java          # Entrypoint агента
-│   │       ├── Constants.java          # Константы
-│   │       └── patches/
-│   │           ├── ClassPatch.java     # Базовый класс патчей
-│   │           ├── PatcherLicenseParser.java
-│   │           └── PublicKeyOverrider.java
-│   └── build.gradle.kts
-├── libs/                               # JFrog proprietary библиотеки
-│   ├── artifactory-addons-manager-7.125.10.jar
-│   └── README.MD
-├── deployment/                         # Контейнеризация
-│   ├── containerfiles/
-│   │   ├── Containerfile.artifactory   # Podman/Docker image
-│   │   └── Containerfile.keygen
-│   └── podman-compose.yml
-├── docs/                               # Документация
-│   ├── BUILD-REPORT.md                 # Отчет о сборке
-│   └── tmp/                            # Временная документация
-├── JfrogDockerfile/                    # Примеры развертывания
-│   ├── Cracked.Example.Dockerfile
-│   ├── Example.docker-compose.yml
-│   └── setenv.sh                       # Конфигурация Tomcat
-├── build.gradle.kts                    # Gradle конфигурация
+├── src/main/kotlin/icu/lama/artifactory/keygen/   # Генератор (Keygen.kt)
+├── src/main/java/org/jfrog/                       # Декомпилированные классы JFrog
+├── ArtifactoryAgent/                              # Java-агент
+├── libs/                                          # artifactory-addons-manager-7.133.9.jar
+├── deployment/                                    # Containerfile, podman-compose
+├── docs/                                          # Документация и отчёты
+├── build.gradle.kts
 ├── settings.gradle.kts
-├── gradle.properties
-├── CHANGELOG.md                        # История изменений
-└── README.md                           # Этот файл
+└── README.md
 ```
-
-### Ключевые компоненты
-
-- **`src/main/kotlin/`** - генератор лицензий (Kotlin)
-- **`ArtifactoryAgent/`** - Java-агент для runtime патчинга
-- **`libs/`** - проприетарные библиотеки JFrog (извлечены из artifactory.war)
-- **`deployment/`** - Containerfile и podman-compose для развертывания
-- **`docs/tmp/`** - техническая документация (не коммитится в Git)
 
 ---
 
 ## Установка и сборка
 
-### Шаг 1: Клонирование репозитория
+### 1. Клонирование и подготовка libs
 
 ```bash
 git clone https://github.com/dantte-lp/ArtifactoryKeygen.git
 cd ArtifactoryKeygen
 ```
 
-### Шаг 2: Извлечение JFrog библиотек
+Положите в `libs/` файл `artifactory-addons-manager-7.133.9.jar`, извлечённый из `artifactory.war` (WEB-INF/lib) дистрибутива Artifactory 7.133.9.
 
-Проект использует проприетарную библиотеку JFrog, которую необходимо извлечь из `artifactory.war`.
-
-#### 2.1. Скачать Artifactory
+### 2. Сборка
 
 ```bash
-# Скачать Artifactory OSS
-wget https://releases.jfrog.io/artifactory/artifactory-oss/org/artifactory/oss/jfrog-artifactory-oss/7.125.10/jfrog-artifactory-oss-7.125.10-linux.tar.gz
-
-# Распаковать
-tar -xzf jfrog-artifactory-oss-7.125.10-linux.tar.gz
-```
-
-#### 2.2. Извлечь библиотеку
-
-```bash
-# Перейти в директорию Tomcat
-cd artifactory-oss-7.125.10/app/artifactory/tomcat/webapps/
-
-# Распаковать WAR файл
-unzip artifactory.war -d artifactory/
-
-# Найти нужную библиотеку
-find artifactory/WEB-INF/lib -name "artifactory-addons-manager*.jar"
-
-# Скопировать в проект
-cp artifactory/WEB-INF/lib/artifactory-addons-manager-7.125.10.jar \
-   /path/to/ArtifactoryKeygen/libs/
-```
-
-#### 2.3. Проверить версию в build.gradle.kts
-
-```kotlin
-// В файле build.gradle.kts убедитесь, что версия совпадает
-implementation(files("./libs/artifactory-addons-manager-7.125.10.jar"))
-```
-
-### Шаг 3: Сборка проекта
-
-```bash
-# Сборка ArtifactoryKeygen
 ./gradlew :shadowJar
-
-# Сборка ArtifactoryAgent
 ./gradlew :ArtifactoryAgent:shadowJar
-
-# Или собрать всё сразу
+# или
 ./gradlew clean build shadowJar
 ```
 
-### Проверка результатов сборки
-
-```bash
-ls -lh build/libs/
-# ArtifactoryKeygen-2.0-SNAPSHOT-all.jar
-
-ls -lh ArtifactoryAgent/build/libs/
-# ArtifactoryAgent-2.0-SNAPSHOT-all.jar
-```
+Артефакты: `build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar`, `ArtifactoryAgent/build/libs/ArtifactoryAgent-2.0-SNAPSHOT-all.jar`.
 
 ---
 
@@ -307,694 +126,115 @@ ls -lh ArtifactoryAgent/build/libs/
 
 ### ArtifactoryKeygen
 
-#### Генерация лицензии
+| Команда | Описание |
+|--------|----------|
+| `gen` | Сгенерировать лицензию (интерактивно, можно несколько продуктов) |
+| `pub` | Показать текущий публичный ключ (RSA) |
+| `pri` | Показать текущий приватный ключ |
+| `genkey` | Сгенерировать новую пару ключей (RSA 4096) |
+| `verify <файл\|строка>` | Проверить лицензию текущим публичным ключом |
+| `obf <текст>` | Обфусцировать строку (ObfuscatedString JFrog) |
+| `mkconfig` | Создать конфигурацию для ArtifactoryAgent (HEX XML) |
+| `verifyAgent` | Проверка Agent при подключении к процессу |
+| `help` | Справка по командам |
+
+**Примеры:**
 
 ```bash
 java -jar build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar gen
-```
-
-**Интерактивный режим:**
-
-```
-ArtifactoryKeygen v2.0-SNAPSHOT
-Educational purposes only!
-
-Enter License Type [Trial/Commercial/Enterprise]: Enterprise
-Enter License Holder: My Company
-Enter Email: admin@example.com
-Enter Valid Days [default: 3650]: 365
-
-Generating license...
-
-===== LICENSE =====
-{
-  "licenseType": "Enterprise",
-  "licensedTo": "My Company",
-  "email": "admin@example.com",
-  "validThrough": "2026-12-26",
-  "signature": "..."
-}
-
-Save to file? [y/N]: y
-License saved to: license.json
-```
-
-#### Просмотр текущего публичного ключа
-
-```bash
-java -jar build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar pub
-```
-
-#### Генерация новой пары ключей
-
-```bash
-java -jar build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar genkey
-```
-
-#### Проверка лицензии
-
-```bash
 java -jar build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar verify license.json
-```
-
-#### Создание конфигурации для Agent
-
-```bash
 java -jar build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar mkconfig
 ```
 
-### Доступные команды
-
-| Команда | Описание |
-|---------|----------|
-| `gen` | Сгенерировать лицензию |
-| `pub` | Получить текущий публичный ключ (RSA) |
-| `pri` | Получить текущий приватный ключ (RSA) |
-| `genkey` | Сгенерировать новую пару ключей (RSA 4096) |
-| `verify <license>` | Проверить лицензию текущим публичным ключом |
-| `obf <text>` | Обфусцировать текст используя класс JFrog 'ObfuscatedString' |
-| `mkconfig` | Создать конфигурацию для ArtifactoryAgent |
-| `verifyAgent` | Проверить работу Agent (attach к текущему процессу) |
-| `help` | Показать справку по командам |
-
----
-
 ### ArtifactoryAgent
 
-#### Установка Agent в Artifactory
+Платформа JFrog в Docker/standalone запускает **два отдельных процесса (две JVM)**:
+- **Artifactory (jfrt)** — томкат `app/artifactory/tomcat`
+- **Access (jfac)** — томкат `app/access/tomcat`
 
-**1. Скопировать JAR файл**
+Проверка лицензии в формате с подписью и класс `LegacyLicenseManager` используются в **Access (jfac)**. Поэтому **агент нужно подключать к обеим JVM**: и к Artifactory, и к Access. Если агент указан только у Artifactory, в логах будет «Patching class» только при загрузке jfrt, а ошибка «Invalid license» будет идти из jfac, где классы не патчатся.
 
-```bash
-# Скопировать Agent в директорию Artifactory
-cp ArtifactoryAgent/build/libs/ArtifactoryAgent-2.0-SNAPSHOT-all.jar \
-   /opt/jfrog/artifactory/app/artifactory/tomcat/lib/
-```
+1. Скопировать JAR агента в оба каталога (или в общее место и указать один путь):
+   ```bash
+   cp ArtifactoryAgent/build/libs/ArtifactoryAgent-2.0-SNAPSHOT-all.jar /opt/jfrog/artifactory/app/artifactory/tomcat/lib/
+   cp ArtifactoryAgent/build/libs/ArtifactoryAgent-2.0-SNAPSHOT-all.jar /opt/jfrog/artifactory/app/access/tomcat/lib/
+   ```
 
-**2. Настроить Tomcat для использования Agent**
+2. **Artifactory (jfrt):** в `app/artifactory/tomcat/bin/setenv.sh` (или аналог) добавить:
+   ```bash
+   CATALINA_OPTS="$CATALINA_OPTS -javaagent:/opt/jfrog/artifactory/app/artifactory/tomcat/lib/ArtifactoryAgent-2.0-SNAPSHOT-all.jar"
+   ```
+   При необходимости передать конфиг: `-javaagent:.../agent.jar=<HEX из mkconfig>`
 
-Отредактировать файл `setenv.sh` (Linux/macOS) или `setenv.bat` (Windows):
+3. **Access (jfac):** в `app/access/tomcat/bin/setenv.sh` добавить ту же опцию для своего томката:
+   ```bash
+   CATALINA_OPTS="$CATALINA_OPTS -javaagent:/opt/jfrog/artifactory/app/access/tomcat/lib/ArtifactoryAgent-2.0-SNAPSHOT-all.jar"
+   ```
+   В Docker-образе файл может генерироваться из шаблона; тогда нужно либо смонтировать свой `setenv.sh` для Access, либо задать переменную окружения, которую скрипт запуска Access подхватывает (например `JF_ACCESS_OPTS` или аналог — зависит от версии образа). В репозитории есть пример `JfrogDockerfile/setenv-access.sh` — его можно копировать в образ в `app/access/tomcat/bin/setenv.sh` или монтировать при запуске контейнера.
 
-**Linux / macOS:**
+4. Перезапустить платформу.
 
-```bash
-# /opt/jfrog/artifactory/app/artifactory/tomcat/bin/setenv.sh
-
-# Добавить в конец файла:
-CATALINA_OPTS="$CATALINA_OPTS -javaagent:/opt/jfrog/artifactory/app/artifactory/tomcat/lib/ArtifactoryAgent-2.0-SNAPSHOT-all.jar"
-CATALINA_OPTS="$CATALINA_OPTS -Djf.product.home=/opt/jfrog/artifactory"
-
-export CATALINA_OPTS
-```
-
-**Windows:**
-
-```batch
-REM setenv.bat
-
-SET CATALINA_OPTS=%CATALINA_OPTS% -javaagent:C:\jfrog\artifactory\tomcat\lib\ArtifactoryAgent-2.0-SNAPSHOT-all.jar
-SET CATALINA_OPTS=%CATALINA_OPTS% -Djf.product.home=C:\jfrog\artifactory
-```
-
-**3. Перезапустить Artifactory**
-
-```bash
-# Остановить
-/opt/jfrog/artifactory/app/bin/artifactoryctl stop
-
-# Запустить
-/opt/jfrog/artifactory/app/bin/artifactoryctl start
-
-# Проверить логи
-tail -f /opt/jfrog/artifactory/var/log/console.log
-```
-
-#### Проверка работы Agent
-
-```bash
-# В логах Artifactory должно появиться:
-[ArtifactoryAgent] Agent loaded successfully
-[ArtifactoryAgent] Patching class: org.jfrog.license.api.a
-[ArtifactoryAgent] License parser patched successfully
-```
-
----
-
-## Диаграммы и схемы
-
-### Sequence Diagram: Процесс работы Agent
-
-```mermaid
-sequenceDiagram
-    participant TC as Tomcat
-    participant AG as ArtifactoryAgent
-    participant CL as ClassLoader
-    participant LP as LicenseParser
-    participant ART as Artifactory Core
-
-    TC->>AG: -javaagent启动
-    activate AG
-    AG->>AG: Инициализация Agent
-    AG->>AG: Регистрация ClassFileTransformer
-
-    CL->>AG: loadClass(org.jfrog.license.api.a)
-    activate CL
-    AG->>AG: transform(className, classBytes)
-
-    alt Целевой класс LicenseParser
-        AG->>AG: Патчинг: замена публичного ключа
-        AG->>AG: Патчинг: изменение логики валидации
-        AG-->>CL: Модифицированный bytecode
-    else Другой класс
-        AG-->>CL: Оригинальный bytecode
-    end
-
-    deactivate CL
-    CL->>LP: Загрузка класса (патченный)
-    activate LP
-
-    ART->>LP: validateLicense(license)
-    LP->>LP: Проверка с модифицированным ключом
-    LP-->>ART: License Valid ✓
-
-    deactivate LP
-    deactivate AG
-```
-
-### Flowchart: Генерация лицензии
-
-```mermaid
-flowchart TD
-    Start([Запуск Keygen]) --> LoadKeys[Загрузка RSA ключей]
-    LoadKeys --> KeysExist{Ключи<br/>существуют?}
-
-    KeysExist -->|Нет| GenKeys[Генерация RSA 4096<br/>ключей]
-    GenKeys --> SaveKeys[Сохранение ключей]
-    SaveKeys --> InputData[Ввод данных лицензии]
-
-    KeysExist -->|Да| InputData
-
-    InputData --> CreateLicense[Создание объекта License]
-    CreateLicense --> Serialize[Сериализация в JSON]
-    Serialize --> Sign[Подпись RSA приватным ключом]
-
-    Sign --> EncodeLicense[Base64 кодирование]
-    EncodeLicense --> OutputLicense[Вывод лицензии]
-
-    OutputLicense --> SaveFile{Сохранить<br/>в файл?}
-    SaveFile -->|Да| WriteFile[Запись license.json]
-    SaveFile -->|Нет| End([Конец])
-    WriteFile --> End
-
-    style Start fill:#4CAF50,color:#fff
-    style End fill:#4CAF50,color:#fff
-    style Sign fill:#2196F3,color:#fff
-```
-
-### Component Diagram: Структура Keygen
-
-```mermaid
-graph LR
-    subgraph "CLI Interface"
-        CLI[Command Line<br/>Interface]
-        PARSER[Argument Parser<br/>Apache Commons CLI]
-    end
-
-    subgraph "Core Logic"
-        KEYGEN[License Generator]
-        VALIDATOR[License Validator]
-        OBFUSCATOR[String Obfuscator]
-    end
-
-    subgraph "Crypto Module"
-        RSA[RSA Key Manager<br/>4096 bits]
-        X509[X.509 Format]
-        BC[BouncyCastle<br/>Crypto Provider]
-    end
-
-    subgraph "Serialization"
-        JSON[Jackson JSON<br/>2.18.2]
-        B64[Base64 Encoder]
-    end
-
-    CLI --> PARSER
-    PARSER --> KEYGEN
-    PARSER --> VALIDATOR
-    PARSER --> OBFUSCATOR
-
-    KEYGEN --> RSA
-    VALIDATOR --> RSA
-    RSA --> BC
-    RSA --> X509
-
-    KEYGEN --> JSON
-    JSON --> B64
-
-    style KEYGEN fill:#4CAF50,color:#fff
-    style RSA fill:#2196F3,color:#fff
-    style BC fill:#FF9800,color:#fff
-```
-
-### Deployment Diagram: Развертывание с Podman
-
-```mermaid
-graph TB
-    subgraph "Host Machine"
-        subgraph "Podman Pod"
-            ARTC[Artifactory Container<br/>+ Agent injected]
-            PGC[PostgreSQL Container]
-        end
-
-        subgraph "Volumes"
-            ADATA[(Artifactory Data)]
-            PGDATA[(PostgreSQL Data)]
-            AGENT[(Agent JAR)]
-            LIC[(License Files)]
-        end
-    end
-
-    subgraph "Build Environment"
-        GRADLE[Gradle Build]
-        KJAR[Keygen JAR]
-        AJAR[Agent JAR]
-    end
-
-    GRADLE --> KJAR
-    GRADLE --> AJAR
-    AJAR --> AGENT
-
-    ARTC -.->|Volume Mount| ADATA
-    ARTC -.->|Volume Mount| AGENT
-    ARTC -.->|Volume Mount| LIC
-    PGC -.->|Volume Mount| PGDATA
-
-    ARTC -->|JDBC| PGC
-
-    style ARTC fill:#41BF47,color:#fff
-    style PGC fill:#336791,color:#fff
-    style AGENT fill:#FF9800,color:#fff
-```
+В логах при старте **обоих** процессов должны появиться блоки «Artifactory Agent :: Is now LOADED!» и «Patching class: org.jfrog.license...» (в т.ч. `org.jfrog.license.legacy.LegacyLicenseManager`). Если только один такой блок — агент подключён только к одной JVM.
 
 ---
 
 ## Конфигурация
 
-### Конфигурация Agent
+### Конфиг агента (mkconfig)
 
-#### Метод 1: Через Keygen (рекомендуется)
-
-```bash
-java -jar build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar mkconfig
-```
-
-Вывод:
-```
-Enter your RSA Public Key (X.509 format):
-[Paste your public key here]
-
-Generated Agent Configuration:
-3C636F6E6669673E0A202020203C7075626C69634B65793E594F55525F5055424C49435F4B45593C2F7075626C69634B65793E0A3C2F636F6E6669673E
-
-Add to setenv.sh:
-CATALINA_OPTS="$CATALINA_OPTS -javaagent:/path/to/agent.jar=3C636F6E6669673E..."
-```
-
-#### Метод 2: Вручную
-
-1. Создать XML конфигурацию:
-
-```xml
-<config>
-    <publicKey>YOUR_PUBLIC_KEY_HERE</publicKey>
-</config>
-```
-
-2. Закодировать в Base64:
-
-```bash
-echo '<config><publicKey>...</publicKey></config>' | base64
-```
-
-3. Преобразовать в HEX (uppercase):
-
-```bash
-echo -n '<config>...</config>' | xxd -p | tr -d '\n' | tr '[:lower:]' '[:upper:]'
-```
-
-4. Передать в Agent:
-
-```bash
-CATALINA_OPTS="-javaagent:/path/to/agent.jar=<HEX_CONFIG>"
-```
-
-### Переопределение публичного ключа
-
-Требования к публичному ключу:
-- **Формат:** RSA Public Key в X.509
-- **Размер:** минимум 4096 bits modulus
-- **Кодировка:** PEM или DER
-
-Генерация собственной пары ключей:
-
-```bash
-java -jar build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar genkey
-
-# Сохранит:
-# - private-key.pem
-# - public-key.pem
-```
+Команда `mkconfig` выводит HEX-строку UTF-8 XML вида `<config><publicKey>...</publicKey></config>`. Эту строку передают в аргументе `-javaagent`; агент парсит её и подменяет публичный ключ для проверки лицензий.
 
 ---
 
 ## Технические детали
 
-### Технологии и библиотеки
-
-#### ArtifactoryKeygen
-
-| Технология | Версия | Назначение |
-|------------|--------|------------|
-| **Kotlin** | 2.1.20 | Основной язык |
-| **Java** | 25 | JVM Target: 23 |
-| **Gradle** | 8.x | Система сборки |
-| **BouncyCastle** | 1.79 | Криптография (RSA, X.509) |
-| **Jackson** | 2.18.2 | JSON сериализация |
-| **Apache Commons CLI** | 1.9.0 | Парсинг аргументов CLI |
-| **Apache Commons Codec** | 1.17.1 | Base64, Hex encoding |
-| **ShadowJar** | 9.0.0-beta4 | Fat JAR packaging |
-
-#### ArtifactoryAgent
-
-| Технология | Версия | Назначение |
-|------------|--------|------------|
-| **Java** | 25 | Основной язык |
-| **Javassist** | 3.30.2-GA | Bytecode manipulation |
-| **Java Instrumentation API** | Built-in | Agent framework |
-
-### Криптография
-
-**Алгоритм:** RSA
-
-**Параметры:**
-- Key Size: 4096 bits
-- Public Exponent: 65537 (0x10001)
-- Signature Algorithm: SHA256withRSA
-- Key Format: X.509 (SubjectPublicKeyInfo)
-
-**Пример генерации ключа (BouncyCastle):**
-
-```kotlin
-val keyPairGenerator = KeyPairGenerator.getInstance("RSA", "BC")
-keyPairGenerator.initialize(4096, SecureRandom())
-val keyPair = keyPairGenerator.generateKeyPair()
-
-val publicKey = keyPair.public as RSAPublicKey
-val privateKey = keyPair.private as RSAPrivateKey
-```
-
-### Java Agent API
-
-**Механизм работы:**
-
-1. **premain method:** вызывается JVM до загрузки main класса
-2. **ClassFileTransformer:** перехват загрузки классов
-3. **Bytecode manipulation:** модификация bytecode с помощью Javassist
-4. **Class redefinition:** загрузка модифицированного класса
-
-**Пример Agent entrypoint:**
-
-```java
-public class AgentMain {
-    public static void premain(String agentArgs, Instrumentation inst) {
-        inst.addTransformer(new ClassFileTransformer() {
-            @Override
-            public byte[] transform(...) {
-                // Patch bytecode here
-            }
-        });
-    }
-}
-```
-
-### Обфускация JFrog
-
-JFrog использует обфускацию имен классов и методов:
-
-- `org.jfrog.license.api.a` - обфусцированный класс LicenseParser
-- Проприетарный алгоритм обфускации строк (`ObfuscatedString`)
-- ProGuard/R8 для минификации
+- **Keygen:** Kotlin 2.1.20, BouncyCastle 1.79, Jackson 2.18.2, JVM 23+
+- **Agent:** Java 25, Javassist. Патчи: `org.jfrog.license.a.a` (toString + поле `b`), `org.jfrog.license.api.a` (статичные c/d), `org.jfrog.license.legacy.LegacyLicenseManager` (при ошибке decrypt возврат null → платформа пробует формат с подписью)
+- **Криптография:** RSA 4096, SHA256withRSA, X.509
 
 ---
 
 ## Troubleshooting
 
-### Проблема: Ошибка сборки - библиотека не найдена
+- **Библиотека не найдена:** убедитесь, что в `libs/` лежит `artifactory-addons-manager-7.133.9.jar`, версия в `build.gradle.kts` совпадает; при необходимости `./gradlew --stop`.
+- **Агент не загружается:** проверьте путь к JAR в `setenv.sh`, права доступа, версию Java (11+).
+- **Лицензия не принимается:** проверьте, что агент загружен, публичный ключ в конфиге совпадает с ключом, которым подписана лицензия; используйте `verify` для проверки.
 
-**Симптомы:**
-```
-Could not resolve: artifactory-addons-manager-7.125.10.jar
-```
+### «Invalid license» / «Failed to decrypt license: last block incomplete in decryption»
 
-**Решение:**
-1. Убедитесь, что JAR файл находится в `libs/`
-2. Проверьте версию в `build.gradle.kts`
-3. Перезапустите Gradle daemon: `./gradlew --stop`
+Ошибка возникает в сервисе **Access (jfac)**: платформа сначала пытается загрузить лицензию как **legacy** (зашифрованный формат) и вызывает `LegacyLicenseManager.decrypt`. Keygen выдаёт лицензию **нового формата** (base64 JSON с подписью), поэтому decrypt падает.
 
-### Проблема: Agent не загружается
+**Что сделано в агенте:** добавлен патч `LegacyLicenseManager`: при исключении в `load()` метод возвращает `null` вместо выброса. Тогда `LicenseManager.loadLicense` может перейти к загрузке лицензии в формате с подписью (который проверяется уже с подставленным публичным ключом).
 
-**Симптомы:**
-```
-Error occurred during initialization of VM
-agent library failed to init: instrument
-```
+**Почему патчинг «не срабатывает» в логах:** в типичном запуске **Artifactory (jfrt)** и **Access (jfac)** — это два разных процесса (два PID). Агент подключается только к той JVM, в которой указан `-javaagent`. Если вы добавили агент только в `app/artifactory/.../setenv.sh`, то патчатся только классы jfrt; лицензию же проверяет **jfac**, и там агента нет → «Invalid license». Решение: добавить `-javaagent` также в опции JVM **Access** (см. раздел ArtifactoryAgent выше).
 
-**Решение:**
+**Что проверить:**
+1. Положите `artifactory-addons-manager-7.133.9.jar` в `libs/` (если собираете Keygen). Для агента этот JAR не нужен в classpath при запуске — агент патчит классы уже в JVM.
+2. Пересоберите агент: `./gradlew :ArtifactoryAgent:shadowJar`. Подключите один и тот же JAR к **обоим** процессам: Artifactory и Access.
+3. В логах при старте должны быть **два** набора сообщений «Artifactory Agent :: Is now LOADED!» и «Patching class: ...» (один раз при старте jfrt, один раз при старте jfac). В каждом наборе должна быть строка `Patching class: org.jfrog.license.legacy.LegacyLicenseManager`. Если её нет вообще — агент не подключён к процессу Access (jfac).
+4. Вставляйте лицензию из Keygen **одной строкой base64**, без лишних пробелов и переносов.
 
-1. Проверить путь к JAR в `setenv.sh`:
-```bash
-ls -la /opt/jfrog/artifactory/app/artifactory/tomcat/lib/ArtifactoryAgent-*.jar
-```
+### Агент ломает старт Artifactory
 
-2. Проверить права доступа:
-```bash
-chmod 644 /path/to/ArtifactoryAgent-*.jar
-```
+Если с включённым агентом (`-javaagent:...`) Artifactory не стартует (ошибки при загрузке контекста, сервисов и т.п.):
 
-3. Проверить Java версию:
-```bash
-java -version
-# Должна быть 11+
-```
+1. **Временно отключите патчинг** (агент всё равно загрузится, но не будет менять классы):
+   ```bash
+   CATALINA_OPTS="$CATALINA_OPTS -Dartifactory.agent.disabled=true"
+   ```
+   Если после этого Artifactory стартует — проблема в логике патчей или в окружении (classloader, версия Artifactory).
 
-### Проблема: Лицензия не принимается
-
-**Симптомы:**
-```
-License validation failed: Invalid signature
-```
-
-**Решение:**
-
-1. Убедитесь, что Agent корректно загружен (проверьте логи)
-2. Проверьте, что публичный ключ в конфигурации Agent совпадает с ключом, использованным для генерации лицензии
-3. Используйте команду `verify` для проверки лицензии:
-```bash
-java -jar build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar verify license.json
-```
-
-### Проблема: Gradle build fails на Java 25
-
-**Симптомы:**
-```
-Unsupported class file major version 69
-```
-
-**Решение:**
-
-Обновить `gradle/wrapper/gradle-wrapper.properties`:
-```properties
-distributionUrl=https\://services.gradle.org/distributions/gradle-8.12-bin.zip
-```
-
-### Проблема: BouncyCastle provider не найден
-
-**Симптомы:**
-```
-java.security.NoSuchProviderException: BC
-```
-
-**Решение:**
-
-Добавить BouncyCastle в classpath и зарегистрировать provider:
-
-```kotlin
-import org.bouncycastle.jce.provider.BouncyCastleProvider
-import java.security.Security
-
-Security.addProvider(BouncyCastleProvider())
-```
-
----
-
-## Roadmap
-
-### Планируется в будущих версиях
-
-- [ ] **Code Cleanup** - рефакторинг и улучшение структуры кода
-- [ ] **Больше конфигурационных опций** для Keygen и Agent
-- [ ] **Автоопределение версии Artifactory** при работе Agent
-- [ ] **Миграция на LicenseManager** - использование де-обфусцированной версии `artifactory-addons-manager`
-- [ ] **GUI версия Keygen** - графический интерфейс для упрощения использования
-- [ ] **Интеграция тестов** - unit и integration тесты
-- [ ] **CI/CD pipeline** - автоматизация сборки и релизов
-- [ ] **Документация API** - Javadoc/KDoc для всех классов
-
-### Текущие ограничения
-
-- Работает только с Artifactory 7.x (протестировано на 7.9.2 - 7.125.10)
-- Требуется ручное извлечение JFrog библиотек
-- Нет автоматической установки Agent
-- Ограниченная поддержка кастомных конфигураций
-
----
-
-## Сборка Docker/Podman образов
-
-### Сборка Keygen образа
-
-```bash
-cd deployment/containerfiles
-
-podman build -t artifactory-keygen:2.0 -f Containerfile.keygen ../..
-
-# Запуск
-podman run -it --rm artifactory-keygen:2.0 gen
-```
-
-### Сборка Artifactory с Agent
-
-```bash
-podman build -t artifactory-cracked:7.104.12 -f Containerfile.artifactory ../..
-
-# Запуск через podman-compose
-cd deployment
-podman-compose up -d
-```
-
----
-
-## Вклад в проект
-
-Pull Requests приветствуются!
-
-### Как внести вклад
-
-1. Fork репозитория
-2. Создать feature branch: `git checkout -b feature/amazing-feature`
-3. Commit изменений: `git commit -m 'Add amazing feature'`
-4. Push в branch: `git push origin feature/amazing-feature`
-5. Открыть Pull Request
-
-### Требования к PR
-
-- Код должен следовать Kotlin/Java code style
-- Добавить тесты для новой функциональности
-- Обновить документацию при необходимости
-- Соблюдать образовательные цели проекта
+2. **Чтобы починить агент, пришлите:**
+   - **Полный лог запуска** с момента старта JVM до падения (все строки, где есть `Artifactory Agent ::` и полный stack trace ошибки).
+   - **Версию Artifactory** (например 7.133.9) и способ запуска (встроенный Tomcat из дистрибутива или свой Tomcat).
+   - **Подтверждение:** без `-javaagent` Artifactory стартует нормально.
 
 ---
 
 ## Лицензия
 
-### Anti-996 License
-
-[![LICENSE](https://img.shields.io/badge/license-Anti%20996-blue.svg)](https://github.com/996icu/996.ICU/blob/master/LICENSE)
-
-Данный проект распространяется под лицензией Anti-996, которая запрещает:
-- Использование в компаниях с режимом работы "996" (9:00-21:00, 6 дней в неделю)
-- Коммерческое использование без соблюдения прав работников
-
-### Образовательная лицензия
-
-Проект создан **исключительно в образовательных целях**:
-
-**Разрешено:**
-- Использование в академических исследованиях
-- Изучение кода для образовательных целей
-- Использование в тестовых/лабораторных средах
-- Форк и модификация для обучения
-
-**Запрещено:**
-- Коммерческое использование без легальной лицензии JFrog
-- Нарушение Terms of Service JFrog Artifactory
-- Использование в production без покупки лицензии
-- Распространение для нелегальных целей
+Проект распространяется под [Anti-996 License](https://github.com/996icu/996.ICU/blob/master/LICENSE). Использование только в образовательных целях. Не аффилирован с JFrog Ltd.
 
 ---
 
-## Поддержка и контакты
-
-### Получение помощи
-
-1. Проверьте раздел [Troubleshooting](#troubleshooting)
-2. Изучите документацию в `/docs/`
-3. Просмотрите существующие Issues на GitHub
-4. Создайте новый Issue с детальным описанием проблемы
-
-### Связь
-
-- **GitHub Repository:** [https://github.com/dantte-lp/ArtifactoryKeygen](https://github.com/dantte-lp/ArtifactoryKeygen)
-- **Issues:** [GitHub Issues](https://github.com/dantte-lp/ArtifactoryKeygen/issues)
-- **Original Author:** [@lama](https://github.com/yourusername)
-- **University Project:** Educational Research
-
----
-
-## Благодарности
-
-- **JFrog** за создание отличной системы управления артефактами
-- **BouncyCastle** за криптографическую библиотеку
-- **Kotlin Team** за современный язык программирования
-- **Open Source Community** за инструменты и библиотеки
-- **996.ICU Movement** за борьбу за права работников
-
----
-
-## Юридическая информация
-
-### Disclaimer
-
-Этот проект создан **исключительно в образовательных целях** в рамках университетской программы по информационной безопасности.
-
-**Авторы и контрибьюторы:**
-- НЕ несут ответственности за использование данного ПО
-- НЕ поддерживают незаконное использование программного обеспечения
-- НЕ призывают к нарушению лицензионных соглашений
-
-**Пользователи:**
-- Несут полную ответственность за использование данного ПО
-- Обязаны соблюдать законодательство своей страны
-- Должны приобретать легальные лицензии для production использования
-
-### Авторские права
-
-- **JFrog Artifactory** - торговая марка JFrog Ltd.
-- **Данный проект** - не аффилирован с JFrog Ltd.
-- **Код проекта** - распространяется под Anti-996 License
-
----
-
-<div align="center">
-
-**Создано:** 2024-2025
-**Версия:** 2.0-SNAPSHOT
-**Статус:** Active Educational Project
-
-![Made with Kotlin](https://img.shields.io/badge/Made%20with-Kotlin-7F52FF?logo=kotlin&logoColor=white)
-![Java 25](https://img.shields.io/badge/Java-25-orange?logo=openjdk&logoColor=white)
-![Educational](https://img.shields.io/badge/Purpose-Educational-orange)
-![Anti 996](https://img.shields.io/badge/license-Anti%20996-blue)
-
-**Помните: используйте этот проект только в образовательных целях!**
-
-</div>
+**Версия:** 2.0-SNAPSHOT | **Статус:** Образовательный проект

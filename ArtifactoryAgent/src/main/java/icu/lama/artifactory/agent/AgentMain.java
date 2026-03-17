@@ -1,5 +1,6 @@
 package icu.lama.artifactory.agent;
 
+import icu.lama.artifactory.agent.patches.LegacyLicenseManagerPatch;
 import icu.lama.artifactory.agent.patches.PatcherLicenseParser;
 import icu.lama.artifactory.agent.patches.PublicKeyOverrider;
 
@@ -14,20 +15,26 @@ public class AgentMain {
     private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();
 
     public static void premain(String args, Instrumentation ins) {
-        if (args != null) {
-            // Hex string is shell friendly
-            var argsRaw = Base64.getDecoder().decode(hexStringToByteArray(args));
+        if (args != null && !args.isBlank()) {
+            // Agent args: HEX string of UTF-8 XML config (same format as produced by Keygen mkconfig)
             try {
-                var doc = DocumentBuilderFactory.newDefaultInstance().newDocumentBuilder().parse(new ByteArrayInputStream(argsRaw));
-
-                var key = doc.getElementsByTagName("publicKey");
-                if (key.getLength() > 1) {
-                    System.out.println("Illegal config! Multiple PublicKey found but 1 is the only allowed amounts.");
-                } else if (key.getLength() != 0) {
-                    Constants.PUBLIC_KEY = key.item(0).getFirstChild().getNodeValue();
-                    System.out.println("Artifactory Agent :: Overriding default PUBLIC_KEY to" + Constants.PUBLIC_KEY);
+                byte[] configBytes = hexStringToByteArray(args.trim());
+                var doc = DocumentBuilderFactory.newDefaultInstance().newDocumentBuilder().parse(new ByteArrayInputStream(configBytes));
+                var keyList = doc.getElementsByTagName("publicKey");
+                if (keyList.getLength() > 1) {
+                    System.err.println("Artifactory Agent :: Illegal config! Only one <publicKey> allowed.");
+                } else if (keyList.getLength() == 1) {
+                    var keyEl = keyList.item(0);
+                    var keyValue = keyEl.getTextContent();
+                    if (keyValue != null && !keyValue.isBlank()) {
+                        Constants.PUBLIC_KEY = keyValue.trim();
+                        System.out.println("Artifactory Agent :: Overriding PUBLIC_KEY from config (length=" + Constants.PUBLIC_KEY.length() + ")");
+                    } else {
+                        System.err.println("Artifactory Agent :: <publicKey> element is empty.");
+                    }
                 }
             } catch (Throwable t) {
+                System.err.println("Artifactory Agent :: Failed to parse config (use HEX of UTF-8 XML from Keygen mkconfig): " + t.getMessage());
                 t.printStackTrace();
             }
         }
@@ -40,8 +47,15 @@ public class AgentMain {
         System.out.println("Artifactory Agent ::   ALERT! USE AT YOUR OWN RISK!       ");
         System.out.println("Artifactory Agent :: =====================================");
 
-        //ins.addTransformer(new PatcherLicenseParser());
-        ins.addTransformer(new PublicKeyOverrider());
+        if ("true".equalsIgnoreCase(System.getProperty("artifactory.agent.disabled"))) {
+            System.out.println("Artifactory Agent :: Patching DISABLED by -Dartifactory.agent.disabled=true");
+            return;
+        }
+
+        // Only transform on first load (canRetransform=false) to avoid interfering with reloads
+        ins.addTransformer(new LegacyLicenseManagerPatch(), false);  // return null on legacy decrypt failure → fallback to new format
+        ins.addTransformer(new PatcherLicenseParser(), false);
+        ins.addTransformer(new PublicKeyOverrider(), false);
     }
 
     public static void main(String... args) {
@@ -65,11 +79,17 @@ public class AgentMain {
 
     // source: https://stackoverflow.com/questions/140131/convert-a-string-representation-of-a-hex-dump-to-a-byte-array-using-java
     public static byte[] hexStringToByteArray(String s) {
+        if (s == null || s.isBlank()) return new byte[0];
+        s = s.trim().replaceAll("\\s+", "");
         int len = s.length();
+        if (len % 2 != 0) {
+            System.err.println("Artifactory Agent :: WARN: hex string length odd, truncating last char");
+            len--;
+        }
         byte[] data = new byte[len / 2];
         for (int i = 0; i < len; i += 2) {
             data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
-                    + Character.digit(s.charAt(i+1), 16));
+                    + Character.digit(s.charAt(i + 1), 16));
         }
         return data;
     }

@@ -21,6 +21,8 @@ import java.security.Signature
 import java.security.interfaces.RSAPublicKey
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
+import java.io.File
+import java.text.SimpleDateFormat
 import java.util.*
 import javax.crypto.Cipher
 import javax.crypto.SecretKeyFactory
@@ -33,22 +35,15 @@ import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
 
 
+private const val VERSION = "2.0-SNAPSHOT"
+
 fun main(vararg args: String) {
-    println("""
-        ALERT!! YOU ARE NOT ALLOWED TO CRACK / ILLEGALLY USE ANY COMMERCIAL SOFTWARE BY JFROG WITH THIS TOOL
-        ALERT!! YOU ARE NOT ALLOWED TO CRACK / ILLEGALLY USE ANY COMMERCIAL SOFTWARE BY JFROG WITH THIS TOOL
-        ALERT!! YOU ARE NOT ALLOWED TO CRACK / ILLEGALLY USE ANY COMMERCIAL SOFTWARE BY JFROG WITH THIS TOOL
-        
-        THIS PROJECT IS FOR EDUCATIONAL PURPOSES! YOU SHOULD DELETE ALL THE DOWNLOADED FILES WITHIN 24HOURS
-                THE CONSEQUENCES CAUSED BY THE USE OF THIS SOFTWARE SHALL BE BORNE BY THE USER
-        
-        ALERT!! YOU ARE NOT ALLOWED TO CRACK / ILLEGALLY USE ANY COMMERCIAL SOFTWARE BY JFROG WITH THIS TOOL
-        ALERT!! YOU ARE NOT ALLOWED TO CRACK / ILLEGALLY USE ANY COMMERCIAL SOFTWARE BY JFROG WITH THIS TOOL
-        ALERT!! YOU ARE NOT ALLOWED TO CRACK / ILLEGALLY USE ANY COMMERCIAL SOFTWARE BY JFROG WITH THIS TOOL
-        
-        < Artifactory Keygen By lamadaemon | For help please use 'help' sub-command >
-        
-    """.trimIndent())
+    println("ArtifactoryKeygen v$VERSION")
+    println("Educational purposes only!")
+    println()
+    println("ALERT! This project is for educational purposes only. Do not use to crack JFrog software.")
+    println("For help use 'help' sub-command.")
+    println()
     val parameters = args.toMutableList()
 
     if (args.isEmpty()) {
@@ -77,50 +72,87 @@ fun main(vararg args: String) {
         }
 
         "gen" -> {
+            val licenseTypeStr = prompt("Enter License Type [Trial/Commercial/Enterprise]: ", listOf("trial", "commercial", "enterprise"), "enterprise")
+            val licensedTo = prompt("Enter License Holder: ", "My Company")
+            val email = prompt("Enter Email: ", "admin@example.com")
+            val validDaysStr = prompt("Enter Valid Days [default: 3650]: ", "3650")
+            val validDays = validDaysStr.toIntOrNull()?.coerceIn(1, 365 * 100) ?: 3650
+
+            val cal = Calendar.getInstance()
+            cal.add(Calendar.DAY_OF_YEAR, validDays)
+            val validThrough = cal.time
+            val validThroughFormatted = SimpleDateFormat("yyyy-MM-dd").format(validThrough)
+
             val private = KeyFactory.getInstance("RSA", BCProviderFactory.getProvider()).generatePrivate(PKCS8EncodedKeySpec(Base64.getDecoder().decode(Constants.PRIVATE_KEY)))
             val sign = Signature.getInstance("SHA256withRSA", BCProviderFactory.getProvider())
-
             val products = mutableMapOf<String, SignedProduct>()
 
             while (true) {
+                val productId = prompt("Enter product id: ", "artifactory")
+                if (products.containsKey(productId)) {
+                    println("Product '$productId' already added. Use another id.")
+                    continue
+                }
+                val owner = prompt("  Owner [$licensedTo]: ", licensedTo)
                 val product = Product()
-                product.id = prompt("Enter product id(artifactory): ", "artifactory")
-                product.expires = date(2099, 12, 31)
-                product.isTrial = false
-                product.owner = prompt("Owner(lamadaemon): ", "lamadaemon")
+                product.id = productId
+                product.expires = validThrough
+                product.isTrial = (licenseTypeStr == "trial")
+                product.owner = owner.ifEmpty { licensedTo }
                 product.validFrom = Date()
                 product.type = Product.Type.ENTERPRISE_PLUS
-
-                products += product.id to SignedProduct(product, private, sign)
-
-                if (prompt("\nDo you want add more products into this license(yes/no, default=no): ", listOf("yes", "no"), "no") == "no") {
-                    break
-                }
+                products[product.id] = SignedProduct(product, private, sign)
+                if (prompt("Add more products to this license? [y/N]: ", listOf("y", "n", "yes", "no"), "n").lowercase() in listOf("n", "no")) break
             }
 
             val license = License()
             license.version = 2
             license.validateOnline = false
             license.products = products
-
             val sLicense = SignedLicense(license, private, sign)
 
-            println("Your license: (DON'T COPY THIS LINE)\n")
-            println(chunkString(createFinalLicense(sLicense)))
-            // println(createFinalLicense(sLicense))
+            println("Generating license...")
             println()
+            val licenseB64 = createFinalLicense(sLicense)
+            val licenseTypeDisplay = licenseTypeStr.replaceFirstChar { it.uppercase() }
+            println("===== LICENSE =====")
+            println("""
+                {
+                  "licenseType": "$licenseTypeDisplay",
+                  "licensedTo": "$licensedTo",
+                  "email": "$email",
+                  "validThrough": "$validThroughFormatted",
+                  "products": [${products.keys.joinToString { "\"$it\"" }}],
+                  "signature": "..."
+                }
+            """.trimIndent())
+            println()
+            val saveToFile = prompt("Save to file? [y/N]: ", listOf("y", "n", "yes", "no"), "n").lowercase()
+            if (saveToFile == "y" || saveToFile == "yes") {
+                File("license.json").writeText(licenseB64)
+                println("License saved to: license.json")
+            }
+            println()
+            println("Raw license (for manual copy):")
+            println(chunkString(licenseB64))
         }
 
         "verify" -> {
             if (parameters.isEmpty()) {
-                return println("input key is missing")
+                return println("Usage: verify <license> — provide license file path (e.g. license.json) or license string.")
+            }
+            val licenseInput = parameters[0]
+            val licenseStr = if (File(licenseInput).takeIf { it.exists() && it.isFile } != null) {
+                File(licenseInput).readText().trim()
+            } else {
+                licenseInput
             }
             runCatching {
                 val a = org.jfrog.license.api.a()
-                a.b(parameters[0], Constants.PUBLIC_KEY)
+                a.b(licenseStr, Constants.PUBLIC_KEY)
             }.onFailure {
                 it.printStackTrace()
-                println("Invalid key")
+                println("Invalid license or signature.")
             }.onSuccess {
                 println(Yaml().dump(it))
             }
@@ -139,36 +171,37 @@ fun main(vararg args: String) {
         }
 
         "mkconfig" -> {
-            val key = prompt("Please enter public key: ")
-            if (key.isBlank()) {
-                println("Key must not be null or blank!")
-            }
-
-            try {
-                val x509Key = X509EncodedKeySpec(Base64.getDecoder().decode(key))
-                val parsedKey = KeyFactory.getInstance("RSA", BCProviderFactory.getProvider()).generatePublic(x509Key) as RSAPublicKey
-                if (parsedKey.modulus.bitLength() < 4096) {
-                    throw Exception("Key is too short")
-                }
-            } catch (err: Exception) {
-                err.printStackTrace()
-                println("Illegal key! Please make sure your key is a standard RSA public key in X509 format and have at least 4096 bits long")
-            }
-
-            println("Key validation success! Your config data: (DON'T COPY THIS LINE)\n")
-
-            val doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument()
+            val key = prompt("Enter your RSA Public Key (X.509 format): ")
+            if (!key.isBlank()) {
+                try {
+                    val x509Key = X509EncodedKeySpec(Base64.getDecoder().decode(key.trim()))
+                    val parsedKey = KeyFactory.getInstance("RSA", BCProviderFactory.getProvider()).generatePublic(x509Key) as RSAPublicKey
+                    if (parsedKey.modulus.bitLength() < 4096) {
+                        throw Exception("Key is too short")
+                    }
+                    val doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument()
             val root = doc.createElement("config")
-
             doc.appendChild(root)
-            root.appendChild(doc.createElement("publicKey").appendChild(doc.createTextNode(key)))
-
+            val keyEl = doc.createElement("publicKey")
+            keyEl.appendChild(doc.createTextNode(key.trim()))
+            root.appendChild(keyEl)
             val transformer = TransformerFactory.newInstance().newTransformer()
             transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes")
             val writer = StringWriter()
             transformer.transform(DOMSource(doc), StreamResult(writer))
-
-            println(writer.buffer.toString().toByteArray().toHex().uppercase())
+            val configHex = writer.buffer.toString().toByteArray(Charsets.UTF_8).toHex().uppercase()
+            println("Generated Agent Configuration:")
+            println(configHex)
+            println()
+            println("Add to setenv.sh:")
+            println("CATALINA_OPTS=\"\$CATALINA_OPTS -javaagent:/path/to/agent.jar=$configHex\"")
+                } catch (err: Exception) {
+                    err.printStackTrace()
+                    println("Illegal key! Please make sure your key is a standard RSA public key in X.509 format and at least 4096 bits long.")
+                }
+            } else {
+                println("Key must not be null or blank!")
+            }
         }
 
         "verifyAgent" -> {
