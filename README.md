@@ -193,9 +193,10 @@ java -jar build/libs/ArtifactoryKeygen-2.0-SNAPSHOT-all.jar mkconfig
 **Что сделано в агенте:** добавлен патч `LegacyLicenseManager`: при исключении в `load()` метод возвращает `null` вместо выброса. Тогда `LicenseManager.loadLicense` может перейти к загрузке лицензии в формате с подписью (который проверяется уже с подставленным публичным ключом).
 
 **Что проверить:**
-1. Пересоберите агент (`./gradlew :ArtifactoryAgent:shadowJar`) и перезапустите Artifactory с новым JAR.
-2. В логах при старте должны быть строки: `Patching class: org.jfrog.license.a.a`, `org.jfrog.license.api.a`, `org.jfrog.license.legacy.LegacyLicenseManager`.
-3. Вставляйте лицензию из Keygen **как одну строку base64** (результат `gen` → «Save to file» или скопированный вывод), без лишних пробелов/переносов.
+1. Положите `artifactory-addons-manager-7.133.9.jar` в `libs/` (если собираете Keygen). Для агента этот JAR не нужен в classpath при запуске — агент патчит классы уже в JVM Artifactory.
+2. Пересоберите агент: `./gradlew :ArtifactoryAgent:shadowJar` — и перезапустите Artifactory с этим JAR в `-javaagent`.
+3. В логах при старте должны быть строки: `Patching class: org.jfrog.license.a.a`, `org.jfrog.license.api.a`, `org.jfrog.license.legacy.LegacyLicenseManager` (при необходимости — с пометкой «bootstrap loader»). Если строки про `LegacyLicenseManager` нет — класс мог загружаться до агента или в другом процессе; убедитесь, что `-javaagent` указан для того же JVM, где крутится Access (jfac).
+4. Вставляйте лицензию из Keygen **одной строкой base64**, без лишних пробелов и переносов.
 
 ### Агент ломает старт Artifactory
 

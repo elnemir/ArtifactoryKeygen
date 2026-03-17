@@ -13,9 +13,16 @@ import java.util.List;
 
 abstract public class ClassPatch implements ClassFileTransformer {
     public final List<String> targetClasses;
+    /** If true, patch even when loader is null (bootstrap/system), using system classpath. */
+    private final boolean allowBootstrapLoader;
 
     public ClassPatch(String... targetClasses) {
+        this(false, targetClasses);
+    }
+
+    public ClassPatch(boolean allowBootstrapLoader, String... targetClasses) {
         this.targetClasses = Arrays.asList(targetClasses);
+        this.allowBootstrapLoader = allowBootstrapLoader;
     }
 
     private static final String PACKAGE_PREFIX = "org.jfrog.license";
@@ -29,21 +36,21 @@ abstract public class ClassPatch implements ClassFileTransformer {
         if (!clazz.startsWith(PACKAGE_PREFIX) || !targetClasses.contains(clazz)) {
             return null;
         }
-        if (loader == null) {
+        if (loader == null && !allowBootstrapLoader) {
             return null;
         }
 
         try {
-            String sourceInfo = "unknown";
-            if (protectionDomain != null && protectionDomain.getCodeSource() != null && protectionDomain.getCodeSource().getLocation() != null) {
-                sourceInfo = protectionDomain.getCodeSource().getLocation().toString();
-            }
-            System.out.println("Artifactory Agent :: Patching class: " + clazz);
+            System.out.println("Artifactory Agent :: Patching class: " + clazz + (loader == null ? " (bootstrap loader)" : ""));
         } catch (Throwable ignored) { }
 
         ClassPool ctPool = new ClassPool();
         try {
-            ctPool.appendClassPath(new LoaderClassPath(loader));
+            if (loader != null) {
+                ctPool.appendClassPath(new LoaderClassPath(loader));
+            } else {
+                ctPool.appendSystemPath();
+            }
         } catch (Throwable t) {
             System.err.println("Artifactory Agent :: Failed to set classpath for " + clazz + ": " + t.getMessage());
             return null;

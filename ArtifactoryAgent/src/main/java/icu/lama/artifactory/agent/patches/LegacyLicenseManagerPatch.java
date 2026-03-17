@@ -8,11 +8,12 @@ import javassist.CtMethod;
  * (e.g. "last block incomplete in decryption" for non-legacy license format),
  * the method returns null instead of throwing. This allows LicenseManager.loadLicense
  * to fall back to the new format path (base64 JSON + signature) used by Keygen.
+ * Uses bootstrap-loader allowance so jfac (Access) can be patched when it loads the class.
  */
 public class LegacyLicenseManagerPatch extends ClassPatch {
 
     public LegacyLicenseManagerPatch() {
-        super("org.jfrog.license.legacy.LegacyLicenseManager");
+        super(true, "org.jfrog.license.legacy.LegacyLicenseManager");  // allow bootstrap loader (jfac may load with null loader)
     }
 
     @Override
@@ -31,10 +32,11 @@ public class LegacyLicenseManagerPatch extends ClassPatch {
                 m.addCatch("return null;", throwableClass);
                 patched = true;
             } catch (Throwable t) {
-                System.err.println("Artifactory Agent :: LegacyLicenseManagerPatch: could not addCatch to " + m.getLongName() + ": " + t.getMessage());
+                System.err.println("Artifactory Agent :: LegacyLicenseManagerPatch: addCatch failed for " + m.getLongName() + ": " + t.getMessage());
             }
         }
         if (!patched) {
+            System.err.println("Artifactory Agent :: LegacyLicenseManagerPatch: no load() method patched (check jar has org.jfrog.license.legacy.LegacyLicenseManager)");
             return classBuf;
         }
         clazz.detach();
